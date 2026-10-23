@@ -31,6 +31,16 @@ public sealed class ClipboardServiceTests : IDisposable
     }
 
     [Fact]
+    public void ExcludeFromHistory_MarksDataForClipboardManagers()
+    {
+        // «Clipboard Viewer Ignore» — общепринятая метка, по которой менеджеры буфера (Clipdiary, Ditto)
+        // не сохраняют и не читают данные; иначе они забирают картинку раньше чата
+        _host.Run(() => _host.Service.PublishAsync(new ClipboardPayload(Png, null, null), ClipboardKind.PasteStep, excludeFromHistory: true));
+        Assert.True(_foreign.HasFormat("Clipboard Viewer Ignore"));
+        Assert.True(_foreign.HasFormat("ExcludeClipboardContentFromMonitorProcessing"));
+    }
+
+    [Fact]
     public void RenderedText_UsesCrLf()
     {
         Publish(new ClipboardPayload(null, null, "a\nb"));

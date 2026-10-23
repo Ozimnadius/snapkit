@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Interop;
+using Snapkit.App.Interop;
+using Snapkit.App.Shell;
 
 namespace Snapkit.App.Clipboarding;
 
@@ -26,6 +28,7 @@ public sealed partial class ClipboardService : IDisposable
     private readonly nint _hwnd;
     private readonly uint _pngFormat;
     private readonly uint _excludeFormat;
+    private readonly uint _viewerIgnoreFormat;
     private readonly object _expectGate = new();
 
     private ClipboardPayload? _payload;
@@ -46,6 +49,7 @@ public sealed partial class ClipboardService : IDisposable
         _hwnd = _source.Handle;
         _pngFormat = RegisterClipboardFormatW("PNG");
         _excludeFormat = RegisterClipboardFormatW("ExcludeClipboardContentFromMonitorProcessing");
+        _viewerIgnoreFormat = RegisterClipboardFormatW("Clipboard Viewer Ignore");
         AddClipboardFormatListener(_hwnd);
     }
 
@@ -53,8 +57,9 @@ public sealed partial class ClipboardService : IDisposable
     public event EventHandler? ClipboardChanged;
 
     /// <summary>
-    /// Положить данные в буфер. excludeFromHistory — не сохранять в журнале Win+V
-    /// (промежуточные картинки при вставке пачки). Буфер занят дольше ~300 мс — ClipboardBusyException.
+    /// Положить данные в буфер. excludeFromHistory — не сохранять в журнале Win+V и в менеджерах
+    /// буфера вроде Clipdiary (промежуточные картинки при вставке пачки): иначе они читают картинку
+    /// раньше чата, и вставку не удаётся подтвердить. Буфер занят дольше ~300 мс — ClipboardBusyException.
     /// </summary>
     public async Task PublishAsync(ClipboardPayload payload, ClipboardKind kind, bool excludeFromHistory)
     {
@@ -71,7 +76,11 @@ public sealed partial class ClipboardService : IDisposable
             if (payload.Png is not null) SetClipboardData(_pngFormat, 0);
             if (payload.Dib is not null) SetClipboardData(CF_DIB, 0);
             if (payload.Text is not null) SetClipboardData(CF_UNICODETEXT, 0);
-            if (excludeFromHistory) SetClipboardData(_excludeFormat, GlobalBytes(new byte[4]));
+            if (excludeFromHistory)
+            {
+                SetClipboardData(_excludeFormat, GlobalBytes(new byte[4]));
+                SetClipboardData(_viewerIgnoreFormat, GlobalBytes(new byte[4]));
+            }
         }
         finally
         {
@@ -86,8 +95,8 @@ public sealed partial class ClipboardService : IDisposable
     public bool IsPackageCurrent() => (ClipboardKind)_kind == ClipboardKind.Package && GetClipboardOwner() == _hwnd;
 
     /// <summary>
-    /// Ждать, пока данные из буфера заберёт процесс targetPid. Вызывать до PublishAsync.
-    /// true — забрал; false — за время ожидания не забрал.
+    /// Ждать, пока данные из буфера заберёт процесс targetPid или его дочерний процесс.
+    /// Вызывать до PublishAsync. true — забрал; false — за время ожидания не забрал.
     /// </summary>
     public Task<bool> ExpectRender(int targetPid, TimeSpan timeout)
     {
@@ -144,16 +153,32 @@ public sealed partial class ClipboardService : IDisposable
         return 0;
     }
 
-    // Данные запросил процесс, который открыл буфер; если это тот, кого ждём, — вставка подтверждена
+    // Данные запросил процесс, который открыл буфер; если это получатель вставки
+    // (или его дочерний процесс) — вставка подтверждена
     private void ConfirmIfExpected()
     {
+        int expectedPid;
+        lock (_expectGate)
+        {
+            if (_expected is not { } expected) return;
+            expectedPid = expected.Pid;
+        }
+
         var opener = GetOpenClipboardWindow();
-        if (opener == 0) return;
-        GetWindowThreadProcessId(opener, out var pid);
+        var pid = 0u;
+        if (opener != 0) GetWindowThreadProcessId(opener, out pid);
+        if (!ProcessTree.IsSameOrDescendant((int)pid, expectedPid))
+        {
+            // Для разбора на месте: кто на самом деле прочитал буфер во время вставки
+            Log.Info($"Буфер во время вставки прочитал не получатель: {ProcessTree.NameOf((int)pid)} ({pid}), " +
+                     $"ждали {ProcessTree.NameOf(expectedPid)} ({expectedPid})");
+            return;
+        }
+
         TaskCompletionSource<bool>? done = null;
         lock (_expectGate)
         {
-            if (_expected is { } expected && expected.Pid == (int)pid)
+            if (_expected is { } expected && expected.Pid == expectedPid)
             {
                 done = expected.Done;
                 _expected = null;

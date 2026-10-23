@@ -26,8 +26,10 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
     private readonly Action<IReadOnlyList<KeyStroke>> _send = send ?? InputSender.Send;
 
     // Сколько ждать, пока окно заберёт данные из буфера, и паузы между шагами.
-    // Подобраны на проверке: при меньших паузах Chromium иногда теряет картинку.
+    // Значения предварительные: проверены на тестовом окне WPF; в Claude Desktop вставка
+    // проходит, в Chrome ещё не проверялась.
     private static readonly TimeSpan ConfirmTimeout = TimeSpan.FromMilliseconds(1500);
+    private static readonly TimeSpan ShortConfirmTimeout = TimeSpan.FromMilliseconds(300);
     private static readonly TimeSpan VerifiedPause = TimeSpan.FromMilliseconds(120);
     private static readonly TimeSpan UnverifiedPause = TimeSpan.FromMilliseconds(400);
     private static readonly TimeSpan KeyReleaseWait = TimeSpan.FromSeconds(1);
@@ -36,6 +38,13 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
     private static readonly TimeSpan SettleAfterRelease = TimeSpan.FromMilliseconds(40);
 
     public bool IsRunning { get; private set; }
+
+    /// <summary>
+    /// Сколько ждать подтверждения шага. Если получатель не подтвердил предыдущую картинку,
+    /// дальше подтверждения тоже не будет — не ждём каждый раз по полторы секунды.
+    /// </summary>
+    public static TimeSpan ConfirmTimeoutFor(bool earlierStepUnconfirmed)
+        => earlierStepUnconfirmed ? ShortConfirmTimeout : ConfirmTimeout;
 
     public async Task<PasteOutcome> PasteBatchAsync()
     {
@@ -47,6 +56,7 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
         {
             var target = Foreground.Current;
             var targetPid = Foreground.ProcessOf(target);
+            Log.Info($"Вставка пачки в {ProcessTree.NameOf(targetPid)} ({targetPid})");
             var package = PackageSelector.Select(session.Model.Captures);
             if (package.Count == 0) return new PasteOutcome(PasteStatus.NothingToPaste, 0, 0);
 
@@ -70,7 +80,7 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
                 if (Foreground.Current != target) return new PasteOutcome(PasteStatus.StoppedTargetChanged, images, notes);
                 if (router.EscapePressedDuringPaste) return new PasteOutcome(PasteStatus.StoppedByUser, images, notes);
 
-                var taken = clipboard.ExpectRender(targetPid, ConfirmTimeout);
+                var taken = clipboard.ExpectRender(targetPid, ConfirmTimeoutFor(earlierStepUnconfirmed: !verified));
                 await clipboard.PublishAsync(step, ClipboardKind.PasteStep, excludeFromHistory: true);
                 router.Resync();
                 _send(PasteKeys.CtrlV(router.Logical));

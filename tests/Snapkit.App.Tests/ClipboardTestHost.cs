@@ -75,6 +75,12 @@ internal sealed partial class ForeignClipboard : IDisposable
         finally { CloseClipboard(); }
     }
 
+    public bool HasFormat(string name) => IsClipboardFormatAvailable(Format(name));
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsClipboardFormatAvailable(uint format);
+
     public string? ReadText()
         => Read(CF_UNICODETEXT) is { } bytes ? Encoding.Unicode.GetString(bytes).TrimEnd('\0') : null;
 

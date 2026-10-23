@@ -30,6 +30,15 @@ public class PasteCoordinatorTests
         Assert.False(paste.IsRunning);
     });
 
+    [Fact]
+    public void ConfirmTimeout_IsShortAfterFirstUnconfirmedStep()
+    {
+        // Если получатель не подтвердил первую картинку, дальше подтверждения тоже не будет —
+        // не ждём на каждом шаге по полторы секунды
+        Assert.Equal(TimeSpan.FromMilliseconds(1500), PasteCoordinator.ConfirmTimeoutFor(earlierStepUnconfirmed: false));
+        Assert.Equal(TimeSpan.FromMilliseconds(300), PasteCoordinator.ConfirmTimeoutFor(earlierStepUnconfirmed: true));
+    }
+
     [Theory]
     [InlineData(PasteStatus.CompletedVerified, 2, 3, "Вставлено: 2 изображения и 3 заметки")]
     [InlineData(PasteStatus.CompletedVerified, 1, 0, "Вставлено: 1 изображение")]
