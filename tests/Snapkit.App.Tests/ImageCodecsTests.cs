@@ -43,6 +43,15 @@ public class ImageCodecsTests
         Assert.Equal(Pixels(original), Pixels(decoded));
     });
 
+    [Fact]
+    public void Opaque_SetsAlphaTo255KeepingColor() => StaRunner.Run(() =>
+    {
+        var transparentRed = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgra32, null, new byte[] { 0, 0, 255, 0 }, 4);
+        var result = ImageCodecs.Opaque(transparentRed);
+        Assert.Equal(new byte[] { 0, 0, 255, 255 }, Pixels(result));
+        Assert.True(result.IsFrozen);
+    });
+
     internal static byte[] Pixels(BitmapSource image)
     {
         var buffer = new byte[image.PixelWidth * image.PixelHeight * 4];

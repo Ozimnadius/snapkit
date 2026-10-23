@@ -86,6 +86,18 @@ public sealed class SessionStoreTests : IDisposable
     }
 
     [Fact]
+    public void RemoveOrphanImages_KeepsOnlyListedCaptures()
+    {
+        var store = new SessionStore(_dir);
+        var kept = Cap(); var orphan = Cap();
+        store.WriteSourceImage(kept.Id, Png1x1);
+        store.WriteSourceImage(orphan.Id, Png1x1);
+        store.RemoveOrphanImages([kept]);
+        Assert.True(File.Exists(store.SourceImagePath(kept.Id)));
+        Assert.False(File.Exists(store.SourceImagePath(orphan.Id)));
+    }
+
+    [Fact]
     public void Clear_RemovesJsonAndImages()
     {
         var store = new SessionStore(_dir);

@@ -1,0 +1,30 @@
+<Window x:Class="Snapkit.App.Notifications.ToastWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Snapkit"
+        SizeToContent="WidthAndHeight"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False" Topmost="True"
+        FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
+        UseLayoutRounding="True">
+    <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorderBrush}"
+            BorderThickness="1" CornerRadius="10" Padding="14,10" MinWidth="200">
+        <StackPanel Orientation="Horizontal">
+            <TextBlock x:Name="MessageText" MaxWidth="340" TextWrapping="Wrap" VerticalAlignment="Center" />
+            <Button x:Name="ActionButton" Margin="14,0,0,0" Padding="0" Cursor="Hand" Focusable="False"
+                    Visibility="Collapsed" VerticalAlignment="Center" Click="ActionButton_Click">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <TextBlock x:Name="Label" Text="{TemplateBinding Content}" FontWeight="SemiBold"
+                                   Foreground="{StaticResource AccentHoverBrush}" />
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Label" Property="TextDecorations" Value="Underline" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </StackPanel>
+    </Border>
+</Window>

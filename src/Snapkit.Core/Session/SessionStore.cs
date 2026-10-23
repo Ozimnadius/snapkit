@@ -39,6 +39,17 @@ public sealed class SessionStore(string directory)
 
     public void WriteSourceImage(Guid id, byte[] png) => AtomicFile.Write(SourceImagePath(id), png);
 
+    /// <summary>Удаляет исходники снимков, которых больше нет в ленте.</summary>
+    public void RemoveOrphanImages(IReadOnlyList<Capture> captures)
+    {
+        if (!Directory.Exists(directory)) return;
+        var keep = captures.Select(c => SourceImagePath(c.Id)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var png in Directory.GetFiles(directory, "*.png"))
+        {
+            if (!keep.Contains(png)) File.Delete(png);
+        }
+    }
+
     public void Clear()
     {
         if (!Directory.Exists(directory)) return;

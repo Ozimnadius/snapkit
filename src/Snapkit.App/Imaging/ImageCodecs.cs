@@ -59,6 +59,19 @@ public static class ImageCodecs
         return result;
     }
 
+    /// <summary>
+    /// Копия с полностью непрозрачными пикселями. Картинки из буфера обмена (CF_DIB) часто
+    /// приходят с нулевой альфой, и без этого снимок выглядел бы пустым.
+    /// </summary>
+    public static BitmapSource Opaque(BitmapSource image)
+    {
+        var pixels = Bgra32Pixels(image, out var width, out var height);
+        for (var i = 3; i < pixels.Length; i += 4) pixels[i] = 255;
+        var result = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+        result.Freeze();
+        return result;
+    }
+
     private static byte[] Bgra32Pixels(BitmapSource image, out int width, out int height)
     {
         BitmapSource bgra = image.Format == PixelFormats.Bgra32
