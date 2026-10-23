@@ -1,50 +1,62 @@
 ﻿# Рисует значок Snapkit и собирает его в ICO с несколькими размерами.
 # Запуск: powershell -File tools/make-icon.ps1
 # Результат: src/Snapkit.App/Assets/snapkit.ico
+#
+# Уголки видоискателя и точка рисуются целыми пикселями без сглаживания,
+# иначе на маленьких кадрах (16–24 px, значок в трее) они расплываются.
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
-$sizes = 16, 24, 32, 48, 256
+$sizes = 16, 20, 24, 32, 40, 48, 64, 256
 $output = Join-Path $PSScriptRoot '..\src\Snapkit.App\Assets\snapkit.ico'
 $accent = [System.Drawing.Color]::FromArgb(255, 0x2F, 0x7B, 0xF5)
 
 function New-IconFrame([int]$s) {
     $bmp = New-Object System.Drawing.Bitmap($s, $s, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
     $g = [System.Drawing.Graphics]::FromImage($bmp)
-    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $g.Clear([System.Drawing.Color]::Transparent)
 
-    # Скруглённый квадрат цвета акцента
-    $r = [float]($s * 0.22)
-    $d = 2 * $r
-    $max = [float]($s - 1)
+    # Скруглённый квадрат цвета акцента — со сглаживанием края
+    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::Half
+    $d = [float]([Math]::Max(3, [Math]::Round($s * 0.2)) * 2)
     $path = New-Object System.Drawing.Drawing2D.GraphicsPath
     $path.AddArc(0, 0, $d, $d, 180, 90)
-    $path.AddArc($max - $d, 0, $d, $d, 270, 90)
-    $path.AddArc($max - $d, $max - $d, $d, $d, 0, 90)
-    $path.AddArc(0, $max - $d, $d, $d, 90, 90)
+    $path.AddArc($s - $d, 0, $d, $d, 270, 90)
+    $path.AddArc($s - $d, $s - $d, $d, $d, 0, 90)
+    $path.AddArc(0, $s - $d, $d, $d, 90, 90)
     $path.CloseFigure()
-    $brush = New-Object System.Drawing.SolidBrush($accent)
-    $g.FillPath($brush, $path)
+    $g.FillPath((New-Object System.Drawing.SolidBrush($accent)), $path)
 
-    # Четыре белых уголка видоискателя
-    $penWidth = [float][Math]::Max(1.5, $s * 0.075)
-    $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::White, $penWidth)
-    $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $a = [float]($s * 0.24)
-    $b = [float]($s - $s * 0.24)
-    $l = [float]($s * 0.17)
-    $g.DrawLines($pen, [System.Drawing.PointF[]]@((New-Object System.Drawing.PointF($a, ($a + $l))), (New-Object System.Drawing.PointF($a, $a)), (New-Object System.Drawing.PointF(($a + $l), $a))))
-    $g.DrawLines($pen, [System.Drawing.PointF[]]@((New-Object System.Drawing.PointF(($b - $l), $a)), (New-Object System.Drawing.PointF($b, $a)), (New-Object System.Drawing.PointF($b, ($a + $l)))))
-    $g.DrawLines($pen, [System.Drawing.PointF[]]@((New-Object System.Drawing.PointF($b, ($b - $l))), (New-Object System.Drawing.PointF($b, $b)), (New-Object System.Drawing.PointF(($b - $l), $b))))
-    $g.DrawLines($pen, [System.Drawing.PointF[]]@((New-Object System.Drawing.PointF(($a + $l), $b)), (New-Object System.Drawing.PointF($a, $b)), (New-Object System.Drawing.PointF($a, ($b - $l)))))
-
-    # Белая точка в центре
-    $dot = [float][Math]::Max(2, $s * 0.14)
+    # Уголки видоискателя: прямоугольники по пиксельной сетке, без сглаживания
+    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::None
+    $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::None
     $white = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
-    $g.FillEllipse($white, [float](($s - $dot) / 2), [float](($s - $dot) / 2), $dot, $dot)
+    $t = [int][Math]::Max(1, [Math]::Round($s * 0.09))   # толщина линии
+    $p = [int][Math]::Round($s * 0.19)                   # отступ от края
+    $l = [int][Math]::Max($t + 1, [Math]::Round($s * 0.22)) # длина плеча
+    $far = $s - $p                                       # правая/нижняя граница (исключительно)
+    foreach ($corner in @(@($p, $p, 1, 1), @($far, $p, -1, 1), @($far, $far, -1, -1), @($p, $far, 1, -1))) {
+        $x = $corner[0]; $y = $corner[1]; $dx = $corner[2]; $dy = $corner[3]
+        $hx = if ($dx -gt 0) { $x } else { $x - $l }
+        $hy = if ($dy -gt 0) { $y } else { $y - $t }
+        $g.FillRectangle($white, $hx, $hy, $l, $t)          # горизонтальное плечо
+        $vx = if ($dx -gt 0) { $x } else { $x - $t }
+        $vy = if ($dy -gt 0) { $y } else { $y - $l }
+        $g.FillRectangle($white, $vx, $vy, $t, $l)          # вертикальное плечо
+    }
+
+    # Точка в центре: на маленьких кадрах — ровный квадрат, на крупных — круг
+    $dot = [int][Math]::Max(2, [Math]::Round($s * 0.125))
+    if (($s - $dot) % 2 -ne 0) { $dot += 1 }               # чтобы точка стояла ровно по центру
+    $o = ($s - $dot) / 2
+    if ($s -le 24) {
+        $g.FillRectangle($white, $o, $o, $dot, $dot)
+    } else {
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $g.FillEllipse($white, [float]$o, [float]$o, [float]$dot, [float]$dot)
+    }
 
     $g.Dispose()
     $stream = New-Object System.IO.MemoryStream
