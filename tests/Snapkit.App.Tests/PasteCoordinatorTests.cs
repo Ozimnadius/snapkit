@@ -1,9 +1,35 @@
+using System.ComponentModel;
+using System.IO;
+using Snapkit.App.Clipboarding;
 using Snapkit.App.Paste;
+using Snapkit.App.Session;
+using Snapkit.Core.Input;
+using Snapkit.Core.Session;
 
 namespace Snapkit.App.Tests;
 
 public class PasteCoordinatorTests
 {
+    [Fact]
+    public void PasteBatch_WhenKeyRestoreFails_StillResetsFlags() => StaRunner.Run(() =>
+    {
+        // Windows может отказаться принять программные нажатия (экран блокировки, запрос UAC).
+        // Флаг «идёт вставка» всё равно должен сняться, иначе Ctrl+V будет глотаться до перезапуска.
+        var dir = Path.Combine(Path.GetTempPath(), "snapkit-tests-" + Guid.NewGuid());
+        using var clipboard = new ClipboardService();
+        var router = new KeyRouter(() => default);
+        var paste = new PasteCoordinator(new SessionService(new SessionStore(dir)), clipboard, router, () => false,
+            send: _ => throw new Win32Exception(5));
+
+        var task = paste.PasteBatchAsync(); // пустая лента — завершается сразу, без ожиданий
+        Assert.True(task.IsCompletedSuccessfully);
+#pragma warning disable xUnit1031 // задача уже завершена, блокировки нет
+        Assert.Equal(PasteStatus.NothingToPaste, task.Result.Status);
+#pragma warning restore xUnit1031
+        Assert.False(router.PasteInProgress);
+        Assert.False(paste.IsRunning);
+    });
+
     [Theory]
     [InlineData(PasteStatus.CompletedVerified, 2, 3, "Вставлено: 2 изображения и 3 заметки")]
     [InlineData(PasteStatus.CompletedVerified, 1, 0, "Вставлено: 1 изображение")]

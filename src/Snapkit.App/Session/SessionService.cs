@@ -2,6 +2,8 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Windows.Media.Imaging;
 using Snapkit.App.Imaging;
+using Snapkit.App.Rendering;
+using Snapkit.App.Shell;
 using Snapkit.Core;
 using Snapkit.Core.Model;
 using Snapkit.Core.Session;
@@ -91,15 +93,49 @@ public sealed class SessionService(SessionStore store)
         Raise(SessionChangeKind.Cleared, null);
     }
 
-    /// <summary>Загрузить ленту, оставшуюся на диске после сбоя или перезагрузки.</summary>
+    /// <summary>
+    /// Загрузить ленту, оставшуюся на диске после сбоя или перезагрузки. Снимки, которые не читаются
+    /// (битая картинка, испорченная разметка), отбрасываются — иначе программа ломалась бы при каждом запуске.
+    /// </summary>
     public int RestoreFromDisk()
     {
-        var captures = store.Load();
-        Model.Load(captures);
+        var usable = new List<Capture>();
+        var dropped = 0;
+        foreach (var capture in store.Load())
+        {
+            var normalized = capture with { SnapshotNote = capture.SnapshotNote ?? "" };
+            if (IsUsable(normalized)) usable.Add(normalized);
+            else dropped++;
+        }
+        if (dropped > 0) Log.Info($"При восстановлении ленты отброшено испорченных снимков: {dropped}");
+
+        Model.Load(usable);
         _latest = Model.Captures.ToList();
+        if (dropped > 0) Persist();
         Enqueue(() => store.RemoveOrphanImages(_latest));
         if (Model.Captures.Count > 0) Raise(SessionChangeKind.Updated, null);
         return Model.Captures.Count;
+    }
+
+    private bool IsUsable(Capture capture)
+    {
+        try
+        {
+            if (capture.Annotations is null || capture.PixelWidth <= 0 || capture.PixelHeight <= 0) return false;
+            foreach (var a in capture.Annotations)
+            {
+                if (a is null || a.Points.IsDefault || !Enum.IsDefined(a.Kind) || !double.IsFinite(a.Thickness)) return false;
+                var required = a.Kind is AnnotationKind.Rectangle or AnnotationKind.Arrow ? 2 : 1;
+                if (a.Points.Length < required) return false;
+                _ = Palette.Color(a.Color); // бросит, если цвет не читается
+            }
+            return GetSource(capture.Id).PixelWidth > 0;
+        }
+        catch (Exception)
+        {
+            _sources.Remove(capture.Id);
+            return false;
+        }
     }
 
     /// <summary>Дождаться окончания фоновой записи (при выходе и в тестах).</summary>

@@ -179,6 +179,79 @@ public class KeyRouterTests
         Assert.Equal(Swallow, r.Process(Up(Vk.Snapshot)));
     }
 
+    // --- Сверка с Windows: на экране блокировки хук не видит отпускание клавиш ---
+
+    [Fact]
+    public void Resync_DropsModifierWhoseReleaseWasMissed()
+    {
+        var actual = Mod.None;
+        var r = new KeyRouter(() => Ready, () => actual);
+        r.Process(Down(Vk.LWin)); // Win+L: отпускание Win ушло на экран блокировки
+        Assert.Equal(new KeyDecision(true, KeyAction.CaptureRegion), r.Process(Down(Vk.Snapshot)));
+        Assert.Equal(Mod.None, r.Logical);
+    }
+
+    [Fact]
+    public void Resync_AfterCtrlAltDel_PlainVIsNotIntercepted()
+    {
+        var actual = Mod.None;
+        var r = new KeyRouter(() => Ready, () => actual);
+        r.Process(Down(Vk.LCtrl));
+        r.Process(Down(Vk.LAlt)); // Ctrl+Alt+Del: отпускания не видны
+        Assert.Equal(Pass, r.Process(Down(Vk.V)));
+    }
+
+    [Fact]
+    public void Resync_DropsStalePhysicalModifier()
+    {
+        var actual = Mod.None;
+        var r = new KeyRouter(() => Ready, () => actual);
+        r.Process(Down(Vk.LShift)); // отпускание потерялось
+        r.Process(Down(0x41));      // любая обычная клавиша — сверка
+        Assert.Equal(Mod.None, r.Physical);
+    }
+
+    [Fact]
+    public void Resync_KeepsPhysicalShiftReleasedByAutoHotkey()
+    {
+        var actual = Mod.LShift;
+        var r = new KeyRouter(() => Ready, () => actual);
+        r.Process(Down(Vk.LShift));
+        actual = Mod.None;
+        r.Process(Up(Vk.LShift, inj: true));
+        actual = Mod.LCtrl;
+        r.Process(Down(Vk.LCtrl, inj: true));
+        Assert.Equal(KeyAction.PasteBatch, r.Process(Down(Vk.V, inj: true)).Action);
+        Assert.Equal(Mod.LShift, r.Physical); // Shift всё ещё в руке — его надо будет вернуть
+    }
+
+    [Fact]
+    public void Resync_Method_TakesActualState()
+    {
+        var actual = Mod.LCtrl;
+        var r = new KeyRouter(() => Ready, () => actual);
+        r.Process(Down(Vk.LCtrl));
+        actual = Mod.None;
+        r.Resync();
+        Assert.Equal(Mod.None, r.Logical);
+    }
+
+    // --- Пауза после вставки: лишние щелчки колеса с AutoHotkey ---
+
+    [Fact]
+    public void AfterPaste_ExtraCtrlVIsBrieflySwallowed()
+    {
+        var now = DateTime.UnixEpoch;
+        var nothingToPaste = new PasteContext(HasUnsent: false, PackageIsCurrent: false, ForegroundIsOwn: false);
+        var r = new KeyRouter(() => nothingToPaste, clock: () => now) { PasteInProgress = true };
+        r.PasteInProgress = false; // пачка вставлена
+        r.Process(Down(Vk.LCtrl));
+        Assert.Equal(Swallow, r.Process(Down(Vk.V)));
+        Assert.Equal(Swallow, r.Process(Up(Vk.V)));
+        now += KeyRouter.AfterPasteGrace + TimeSpan.FromMilliseconds(1);
+        Assert.Equal(Pass, r.Process(Down(Vk.V)));
+    }
+
     [Fact]
     public void Modifiers_AreNeverSuppressed()
     {

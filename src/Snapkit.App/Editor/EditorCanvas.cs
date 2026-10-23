@@ -41,7 +41,9 @@ internal sealed class EditorCanvas : FrameworkElement
         // Прозрачная заливка нужна, чтобы холст получал клики по всей площади
         dc.DrawRectangle(Brushes.Transparent, null, bounds);
         dc.PushClip(new RectangleGeometry(bounds));
-        if (Background is not null) dc.DrawImage(Background, bounds);
+        // Снимок рисуется 1:1, а не вписывается в холст: если он не поместился на экран,
+        // край обрезается, но разметка остаётся там же, где на снимке
+        if (Background is not null) dc.DrawImage(Background, new Rect(0, 0, Background.PixelWidth, Background.PixelHeight));
         dc.PushTransform(new TranslateTransform(-Offset.X, -Offset.Y));
 
         var items = Preview is null ? Items : Items.Append(Preview).ToList();

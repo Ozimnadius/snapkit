@@ -17,7 +17,8 @@ $installDir = Join-Path $env:LOCALAPPDATA 'Programs\Snapkit'
 $publishDir = Join-Path $PSScriptRoot 'artifacts\publish'
 
 Write-Host '1/5 Запускаю тесты...' -ForegroundColor Cyan
-& $dotnet test Snapkit.slnx --filter 'Category!=Clipboard' --nologo -v q
+# Тесты с настоящим буфером обмена и окнами на экране здесь не запускаются — см. README
+& $dotnet test Snapkit.slnx --filter 'Category!=Clipboard&Category!=Desktop' --nologo -v q
 if ($LASTEXITCODE -ne 0) { Write-Host 'Тесты не прошли, сборка остановлена.' -ForegroundColor Red; exit 1 }
 
 Write-Host '2/5 Собираю программу...' -ForegroundColor Cyan

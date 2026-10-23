@@ -4,7 +4,7 @@
         Title="Snapkit — снимок"
         WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
         Background="Black" Cursor="Cross" FontFamily="Segoe UI" FontSize="13"
-        Foreground="{StaticResource TextBrush}">
+        Foreground="{DynamicResource TextBrush}">
     <Grid x:Name="Root" Background="Transparent">
         <!-- Застывший кадр монитора: окно размером с монитор, 1 пиксель кадра = 1 пиксель экрана -->
         <Image x:Name="FrameImage" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" />
@@ -13,7 +13,7 @@
         <Path x:Name="Shade" Fill="#80000000" IsHitTestVisible="False" />
 
         <Canvas x:Name="SelectionLayer" IsHitTestVisible="False">
-            <Rectangle x:Name="SelectionBorder" Stroke="{StaticResource AccentBrush}" StrokeThickness="2" Visibility="Collapsed" />
+            <Rectangle x:Name="SelectionBorder" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" Visibility="Collapsed" />
             <Border x:Name="SizeLabel" Background="#E61E2128" CornerRadius="4" Padding="6,2" Visibility="Collapsed">
                 <TextBlock x:Name="SizeText" FontSize="12" />
             </Border>

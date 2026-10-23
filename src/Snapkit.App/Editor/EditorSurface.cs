@@ -125,6 +125,9 @@ public sealed class EditorSurface : UserControl
         Refresh();
     }
 
+    /// <summary>Отменить снимок так же, как по Esc (с вопросом, если есть правки).</summary>
+    public void RequestCancel() => Cancelled?.Invoke(this, EventArgs.Empty);
+
     public void Finish()
     {
         CommitText();

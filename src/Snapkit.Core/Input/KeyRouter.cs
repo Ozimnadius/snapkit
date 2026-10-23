@@ -5,8 +5,19 @@ namespace Snapkit.Core.Input;
 /// Process вызывается с потока хука (под замком вызывающего) и должен работать мгновенно.
 /// Logical, Physical, PasteInProgress и EscapePressedDuringPaste читаются и пишутся с других потоков.
 /// </summary>
-public sealed class KeyRouter(Func<PasteContext> pasteContext)
+/// <param name="actualModifiers">
+/// Модификаторы, нажатые с точки зрения Windows (GetAsyncKeyState). Нужны для сверки:
+/// на экране блокировки (Win+L, Ctrl+Alt+Del, запрос UAC) хук не видит отпускание клавиш.
+/// </param>
+/// <param name="clock">Часы — для паузы после вставки; в тестах подменяются.</param>
+public sealed class KeyRouter(Func<PasteContext> pasteContext, Func<Mod>? actualModifiers = null, Func<DateTime>? clock = null)
 {
+    /// <summary>
+    /// Сколько ещё глотать Ctrl+V после конца вставки: колесо мыши с AutoHotkey шлёт
+    /// несколько Ctrl+V подряд, и последние не должны вставить текст ещё раз.
+    /// </summary>
+    public static readonly TimeSpan AfterPasteGrace = TimeSpan.FromMilliseconds(400);
+
     private static readonly KeyDecision Pass = new(false, KeyAction.None);
     private static readonly KeyDecision Swallow = new(true, KeyAction.None);
 
@@ -20,12 +31,21 @@ public sealed class KeyRouter(Func<PasteContext> pasteContext)
     private volatile int _physical;
     private volatile bool _pasteInProgress;
     private volatile bool _escapePressed;
+    private long _graceUntilTicks;
 
     // Клавиши, чьё нажатие подавлено: их отпускание тоже нужно подавить.
     private readonly HashSet<int> _suppressedDown = [];
 
     public IReadOnlyDictionary<Hotkey, KeyAction> Hotkeys { get => _hotkeys; set => _hotkeys = value; }
-    public bool PasteInProgress { get => _pasteInProgress; set => _pasteInProgress = value; }
+    public bool PasteInProgress
+    {
+        get => _pasteInProgress;
+        set
+        {
+            if (_pasteInProgress && !value) Volatile.Write(ref _graceUntilTicks, (Now() + AfterPasteGrace).Ticks);
+            _pasteInProgress = value;
+        }
+    }
     public bool EscapePressedDuringPaste { get => _escapePressed; set => _escapePressed = value; }
 
     /// <summary>Модификаторы с точки зрения Windows: все события, включая программные.</summary>
@@ -47,6 +67,9 @@ public sealed class KeyRouter(Func<PasteContext> pasteContext)
         // Свои программные нажатия (вставка пачки) никогда не перехватываем.
         if (input.IsOwn) return Pass;
 
+        // Перед решением по обычной клавише сверяем модификаторы с Windows
+        Resync();
+
         return input.IsDown ? OnDown(input.Vk) : OnUp(input.Vk);
     }
 
@@ -54,11 +77,16 @@ public sealed class KeyRouter(Func<PasteContext> pasteContext)
     {
         var logical = Logical;
 
-        if (_pasteInProgress)
+        if (_pasteInProgress && vk == Vk.Escape)
         {
-            if (vk == Vk.Escape) { _escapePressed = true; return Pass; }
-            // Повторы Ctrl+V от удержания клавиш не должны вставить что-то лишнее.
-            if (vk == Vk.V && ModKeys.HasCtrl(logical)) { _suppressedDown.Add(vk); return Swallow; }
+            _escapePressed = true;
+            return Pass;
+        }
+        // Повторы Ctrl+V во время вставки и сразу после неё не должны вставить что-то лишнее
+        if ((_pasteInProgress || InGrace()) && vk == Vk.V && ModKeys.HasCtrl(logical))
+        {
+            _suppressedDown.Add(vk);
+            return Swallow;
         }
 
         if (_hotkeys.TryGetValue(new Hotkey(ModKeys.Summary(logical), vk), out var action))
@@ -90,6 +118,25 @@ public sealed class KeyRouter(Func<PasteContext> pasteContext)
 
         return Pass;
     }
+
+    /// <summary>
+    /// Привести модификаторы к состоянию Windows. Бит, который мы считали нажатым, а Windows —
+    /// нет, — это пропущенное отпускание: он убирается и из Physical. Shift, отпущенный
+    /// программой (AutoHotkey) при зажатой руке, мы и так считаем отпущенным, поэтому он
+    /// в Physical остаётся.
+    /// </summary>
+    public void Resync()
+    {
+        if (actualModifiers is null) return;
+        var actual = (int)actualModifiers();
+        var missedReleases = _logical & ~actual;
+        _physical &= ~missedReleases;
+        _logical = actual;
+    }
+
+    private DateTime Now() => clock?.Invoke() ?? DateTime.UtcNow;
+
+    private bool InGrace() => Now().Ticks < Volatile.Read(ref _graceUntilTicks);
 
     private static int Apply(int state, Mod mod, bool down) => down ? state | (int)mod : state & ~(int)mod;
 }

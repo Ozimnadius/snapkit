@@ -74,7 +74,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
                 else if (_editor is not null && window.Editor == _editor && window.Region is { } region) _editor.SetRegion(region);
             };
             window.Confirmed += (_, _) => _editor?.Finish();
-            window.Cancelled += (_, _) => Close();
+            window.Cancelled += (_, _) => Cancel();
             _windows.Add(window);
             window.Show();
         }
@@ -116,7 +116,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
         }
 
         var window = new CaptureOverlayWindow(monitor, frame) { SelectionLocked = true };
-        window.Cancelled += (_, _) => Close();
+        window.Cancelled += (_, _) => Cancel();
         _windows.Add(window);
         window.Show();
         window.PresetRegion(local);
@@ -229,9 +229,20 @@ public sealed partial class CaptureController(SessionService session, Action hid
         session.AddCapture(crop, screenBounds, result.Annotations, result.SnapshotNote);
     }
 
+    // Отмена из окна (Esc до выделения, Alt+F4): если открыт редактор — как Esc в нём, с вопросом о правках
+    private void Cancel()
+    {
+        if (_editor is { } editor) editor.RequestCancel();
+        else Close();
+    }
+
     private void Close()
     {
-        foreach (var window in _windows) window.Close();
+        foreach (var window in _windows)
+        {
+            window.AllowClose();
+            window.Close();
+        }
         _windows.Clear();
         _editor = null;
         restoreChrome();

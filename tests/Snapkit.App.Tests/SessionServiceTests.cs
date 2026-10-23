@@ -60,6 +60,54 @@ public sealed class SessionServiceTests : IDisposable
     });
 
     [Fact]
+    public void RestoreFromDisk_DropsCaptureWithCorruptImage() => StaRunner.Run(() =>
+    {
+        var store = new SessionStore(_dir);
+        var good = new SessionService(store);
+        var keptId = good.AddCapture(Image(10, 10), new RectI(0, 0, 10, 10), [], "");
+        good.FlushAsync().Wait();
+        var broken = new Capture(Guid.NewGuid(), 10, 10, new RectI(0, 0, 10, 10), [], "", false, DateTimeOffset.UnixEpoch);
+        store.WriteSourceImage(broken.Id, [1, 2, 3]); // не PNG
+        store.Save([.. store.Load(), broken]);
+
+        var restored = new SessionService(new SessionStore(_dir));
+        Assert.Equal(1, restored.RestoreFromDisk());
+        Assert.Equal(keptId, Assert.Single(restored.Model.Captures).Id);
+        restored.FlushAsync().Wait();
+    });
+
+    [Theory]
+    [InlineData("не цвет", 2)]   // цвет не читается
+    [InlineData("#E53935", 1)]   // у рамки одна точка вместо двух
+    public void RestoreFromDisk_DropsCaptureWithBrokenAnnotation(string color, int points) => StaRunner.Run(() =>
+    {
+        var service = new SessionService(new SessionStore(_dir));
+        var bad = new Annotation(Guid.NewGuid(), AnnotationKind.Rectangle,
+            [.. Enumerable.Range(0, points).Select(i => new PointD(i, i))], color, 4, null, "x");
+        service.AddCapture(Image(10, 10), new RectI(0, 0, 10, 10), [bad], "");
+        service.FlushAsync().Wait();
+
+        var restored = new SessionService(new SessionStore(_dir));
+        Assert.Equal(0, restored.RestoreFromDisk());
+        Assert.Empty(restored.Model.Captures);
+        restored.FlushAsync().Wait();
+    });
+
+    [Fact]
+    public void RestoreFromDisk_DropsCaptureWithNullAnnotations() => StaRunner.Run(() =>
+    {
+        var service = new SessionService(new SessionStore(_dir));
+        var id = service.AddCapture(Image(10, 10), new RectI(0, 0, 10, 10), [], "");
+        service.FlushAsync().Wait();
+        var json = Path.Combine(_dir, "session.json");
+        File.WriteAllText(json, File.ReadAllText(json).Replace("\"annotations\": []", "\"annotations\": null"));
+
+        var restored = new SessionService(new SessionStore(_dir));
+        Assert.Equal(0, restored.RestoreFromDisk());
+        restored.FlushAsync().Wait();
+    });
+
+    [Fact]
     public void Remove_RaisesRemovedAndForgetsCapture() => StaRunner.Run(() =>
     {
         var service = new SessionService(new SessionStore(_dir));

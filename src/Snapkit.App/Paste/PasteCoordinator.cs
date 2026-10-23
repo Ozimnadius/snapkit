@@ -4,6 +4,7 @@ using Snapkit.App.Input;
 using Snapkit.App.Interop;
 using Snapkit.App.Rendering;
 using Snapkit.App.Session;
+using Snapkit.App.Shell;
 using Snapkit.Core;
 using Snapkit.Core.Input;
 
@@ -18,8 +19,12 @@ public sealed record PasteOutcome(PasteStatus Status, int ImagesPasted, int Note
 /// и программный Ctrl+V. Enter не нажимается никогда: сообщение отправляет пользователь.
 /// </summary>
 /// <param name="clearAfterPaste">Настройка «Очищать ленту после вставки».</param>
-public sealed class PasteCoordinator(SessionService session, ClipboardService clipboard, KeyRouter router, Func<bool> clearAfterPaste)
+/// <param name="send">Отправка программных нажатий; по умолчанию SendInput (подменяется в тестах).</param>
+public sealed class PasteCoordinator(SessionService session, ClipboardService clipboard, KeyRouter router, Func<bool> clearAfterPaste,
+    Action<IReadOnlyList<KeyStroke>>? send = null)
 {
+    private readonly Action<IReadOnlyList<KeyStroke>> _send = send ?? InputSender.Send;
+
     // Сколько ждать, пока окно заберёт данные из буфера, и паузы между шагами.
     // Подобраны на проверке: при меньших паузах Chromium иногда теряет картинку.
     private static readonly TimeSpan ConfirmTimeout = TimeSpan.FromMilliseconds(1500);
@@ -67,7 +72,8 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
 
                 var taken = clipboard.ExpectRender(targetPid, ConfirmTimeout);
                 await clipboard.PublishAsync(step, ClipboardKind.PasteStep, excludeFromHistory: true);
-                InputSender.Send(PasteKeys.CtrlV(router.Logical));
+                router.Resync();
+                _send(PasteKeys.CtrlV(router.Logical));
                 var confirmed = await taken;
                 verified &= confirmed;
                 if (step.Png is not null) images++;
@@ -84,18 +90,31 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
         }
         finally
         {
-            // Ни одна клавиша не должна остаться залипшей
-            InputSender.Send(PasteKeys.Restore(router.Physical, router.Logical));
+            // Флаги снимаются первыми: если Windows не примет нажатия, Ctrl+V не должен глотаться навсегда
             router.PasteInProgress = false;
             IsRunning = false;
+            try
+            {
+                // Ни одна клавиша не должна остаться залипшей
+                router.Resync();
+                _send(PasteKeys.Restore(router.Physical, router.Logical));
+            }
+            catch (Exception ex)
+            {
+                Log.Error("восстановление клавиш после вставки", ex);
+            }
         }
     }
 
     private async Task WaitForCtrlRelease()
     {
         var deadline = DateTime.UtcNow + KeyReleaseWait;
+        router.Resync();
         while ((router.Logical & (Mod.LCtrl | Mod.RCtrl)) != 0 && DateTime.UtcNow < deadline)
+        {
             await Task.Delay(KeyPoll);
+            router.Resync();
+        }
         await Task.Delay(SettleAfterRelease);
     }
 

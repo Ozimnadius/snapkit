@@ -31,6 +31,17 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_Corrupt_MovesFileAside_SoNextStartIsQuiet()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(FilePath, "{сломано");
+        var store = new SettingsStore(FilePath);
+        Assert.True(store.Load().WasReset);
+        Assert.False(store.Load().WasReset); // при следующем запуске сообщения уже нет
+        Assert.True(File.Exists(Path.Combine(_dir, "settings.bad.json")));
+    }
+
+    [Fact]
     public void SaveThenLoad_RoundTrips()
     {
         var saved = new AppSettings(LaunchAtStartup: false, ClearStripAfterPaste: true, StripLeft: 100.5, StripTop: 42,

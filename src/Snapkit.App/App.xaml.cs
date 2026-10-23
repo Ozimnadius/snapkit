@@ -65,8 +65,17 @@ public partial class App : Application
         }
 
         _settingsStore = new SettingsStore(SettingsPath);
-        var (settings, settingsWereReset) = _settingsStore.Load();
-        _settings = settings;
+        var settingsWereReset = false;
+        try
+        {
+            (_settings, settingsWereReset) = _settingsStore.Load();
+        }
+        catch (Exception ex)
+        {
+            // Файл занят или недоступен — работаем с настройками по умолчанию
+            Log.Error("чтение настроек", ex);
+            settingsWereReset = true;
+        }
         Toasts.Enabled = _settings.ShowNotifications;
         ApplyAutoStart();
 
@@ -74,7 +83,7 @@ public partial class App : Application
         _session.SaveFailed += (_, ex) =>
         {
             Log.Error("запись ленты на диск", ex);
-            Toasts.Error("Не удалось сохранить ленту на диск: " + ex.Message);
+            Toasts.Error("Не удалось сохранить ленту на диск. Подробности — в журнале");
         };
         _clipboard = new ClipboardService();
         _publisher = new PackagePublisher(_session, _clipboard);
@@ -95,6 +104,8 @@ public partial class App : Application
         };
         WireStrip();
         WireTray();
+        // Перехват клавиш — до восстановления ленты: что бы ни случилось с лентой, Print Screen работает
+        StartKeyboardHook();
 
         var restored = 0;
         try { restored = _session.RestoreFromDisk(); }
@@ -108,7 +119,6 @@ public partial class App : Application
         RefreshStrip();
         PlaceStrip();
         _strip.Show();
-        StartKeyboardHook();
 
         if (settingsWereReset) Toasts.Show("Файл настроек не читался, настройки созданы заново");
         if (restored > 0) Toasts.Show("Снимки восстановлены после сбоя");
@@ -176,7 +186,7 @@ public partial class App : Application
     /// <summary>Глобальные клавиши: Print Screen — снимок, Ctrl+V — вставка пачки.</summary>
     private void StartKeyboardHook()
     {
-        _router = new KeyRouter(() => new PasteContext(_hasUnsent, IsPackageCurrent(), Foreground.IsOwn()));
+        _router = new KeyRouter(() => new PasteContext(_hasUnsent, IsPackageCurrent(), Foreground.IsOwn()), ModifierState.Read);
         _paste = new PasteCoordinator(_session, _clipboard!, _router, () => _settings.ClearStripAfterPaste);
         _hook = new KeyboardHookThread(_router, action => Dispatcher.BeginInvoke(() => OnKeyAction(action)));
         try { _hook.Start(); }
@@ -254,7 +264,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             Log.Error("вставка пачки", ex);
-            Toasts.Error("Вставка не удалась: " + ex.Message);
+            Toasts.Error("Вставка не удалась. Подробности — в журнале");
         }
         UpdatePackageDisplaced();
     }
@@ -281,8 +291,28 @@ public partial class App : Application
     private void RefreshStrip()
     {
         var thumbnailPixels = (int)Math.Ceiling(ThumbnailWidth * VisualTreeHelper.GetDpi(_strip).DpiScaleX);
-        _stripModel.Refresh(_session.Model.Captures,
-            (capture, letter) => CaptureRenderer.RenderThumbnail(_session.GetSource(capture.Id), capture, letter, thumbnailPixels));
+        _stripModel.Refresh(_session.Model.Captures, (capture, letter) =>
+        {
+            try
+            {
+                return CaptureRenderer.RenderThumbnail(_session.GetSource(capture.Id), capture, letter, thumbnailPixels);
+            }
+            catch (Exception ex)
+            {
+                // Одна испорченная миниатюра не должна ломать всю ленту
+                Log.Error("миниатюра снимка", ex);
+                return EmptyThumbnail;
+            }
+        });
+    }
+
+    private static readonly BitmapSource EmptyThumbnail = CreateEmptyThumbnail();
+
+    private static BitmapSource CreateEmptyThumbnail()
+    {
+        var image = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgra32, null, new byte[4], 4);
+        image.Freeze();
+        return image;
     }
 
     private void PlaceStrip()
@@ -393,7 +423,7 @@ public partial class App : Application
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         Log.Error("в интерфейсе", e.Exception);
-        Toasts.Error("Ошибка: " + e.Exception.Message);
+        Toasts.Error("Что-то пошло не так. Подробности — в журнале");
         e.Handled = true;
     }
 }

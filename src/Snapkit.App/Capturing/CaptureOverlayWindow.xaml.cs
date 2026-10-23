@@ -44,9 +44,20 @@ public partial class CaptureOverlayWindow : Window
             SelectionLayer.Children.Add(_handles[i]);
         }
 
-        SourceInitialized += (_, _) => PlaceOnMonitor();
-        // При переходе на монитор с другим масштабом WPF меняет размер окна — возвращаем точные границы
-        DpiChanged += (_, _) => PlaceOnMonitor();
+        SourceInitialized += (_, _) =>
+        {
+            // Свой обработчик стоит раньше WPF: при смене масштаба Windows предлагает новый размер окна,
+            // а нам нужно, чтобы окно оставалось ровно на границах монитора
+            HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(KeepBoundsOnDpiChange);
+            PlaceOnMonitor();
+        };
+        // Закрыть окно в обход программы (Alt+F4) — значит отменить снимок
+        Closing += (_, e) =>
+        {
+            if (_closeAllowed) return;
+            e.Cancel = true;
+            Cancelled?.Invoke(this, EventArgs.Empty);
+        };
         Loaded += (_, _) => Redraw();
 
         Root.MouseLeftButtonDown += OnMouseDown;
@@ -73,6 +84,11 @@ public partial class CaptureOverlayWindow : Window
         _selection.End();
         Redraw();
     }
+
+    private bool _closeAllowed;
+
+    /// <summary>Разрешить закрыть окно — так закрывает его сама программа.</summary>
+    public void AllowClose() => _closeAllowed = true;
 
     /// <summary>Поставить рамку на заданное место (повторное открытие снимка).</summary>
     public void PresetRegion(RectI region)
@@ -231,6 +247,27 @@ public partial class CaptureOverlayWindow : Window
     {
         var b = Monitor.Bounds;
         SetWindowPos(new WindowInteropHelper(this).Handle, HWND_TOPMOST, b.X, b.Y, b.Width, b.Height, SWP_NOACTIVATE);
+    }
+
+    private nint KeepBoundsOnDpiChange(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
+    {
+        if (msg == WM_DPICHANGED)
+        {
+            var b = Monitor.Bounds;
+            Marshal.StructureToPtr(new RECT { Left = b.X, Top = b.Y, Right = b.Right, Bottom = b.Bottom }, lParam, false);
+        }
+        return 0;
+    }
+
+    private const int WM_DPICHANGED = 0x02E0;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
     }
 
     private static readonly nint HWND_TOPMOST = -1;
