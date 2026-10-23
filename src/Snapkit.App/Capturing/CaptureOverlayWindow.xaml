@@ -1,0 +1,30 @@
+<Window x:Class="Snapkit.App.Capturing.CaptureOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Snapkit — снимок"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        Background="Black" Cursor="Cross" FontFamily="Segoe UI" FontSize="13"
+        Foreground="{StaticResource TextBrush}">
+    <Grid x:Name="Root" Background="Transparent">
+        <!-- Застывший кадр монитора: окно размером с монитор, 1 пиксель кадра = 1 пиксель экрана -->
+        <Image x:Name="FrameImage" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+
+        <!-- Затемнение всего, кроме выделенной области -->
+        <Path x:Name="Shade" Fill="#80000000" IsHitTestVisible="False" />
+
+        <Canvas x:Name="SelectionLayer" IsHitTestVisible="False">
+            <Rectangle x:Name="SelectionBorder" Stroke="{StaticResource AccentBrush}" StrokeThickness="2" Visibility="Collapsed" />
+            <Border x:Name="SizeLabel" Background="#E61E2128" CornerRadius="4" Padding="6,2" Visibility="Collapsed">
+                <TextBlock x:Name="SizeText" FontSize="12" />
+            </Border>
+        </Canvas>
+
+        <!-- Здесь в редакторе появляются панели (задача 9) -->
+        <Canvas x:Name="EditorLayer" />
+
+        <Border x:Name="Hint" Background="#E61E2128" CornerRadius="8" Padding="14,8" Margin="0,28,0,0"
+                HorizontalAlignment="Center" VerticalAlignment="Top" IsHitTestVisible="False">
+            <TextBlock Text="Выделите область · Esc отменяет" />
+        </Border>
+    </Grid>
+</Window>

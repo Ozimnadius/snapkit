@@ -15,6 +15,9 @@ public static class Toasts
     public static void Show(string message, string? actionText = null, Action? onAction = null)
         => Display(message, actionText, onAction, force: false);
 
+    /// <summary>Спрятать уведомление сразу (перед снимком экрана).</summary>
+    public static void HideNow() => _window?.Hide();
+
     /// <summary>Сообщение об ошибке — показывается даже при выключенных уведомлениях.</summary>
     public static void Error(string message) => Display(message, null, null, force: true);
 

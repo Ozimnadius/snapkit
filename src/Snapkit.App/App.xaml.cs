@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Snapkit.App.Capturing;
 using Snapkit.App.Imaging;
 using Snapkit.App.Notifications;
 using Snapkit.App.Rendering;
@@ -35,7 +36,9 @@ public partial class App : Application
     private StripViewModel _stripModel = null!;
     private StripWindow _strip = null!;
     private TrayIcon? _tray;
+    private CaptureController _capture = null!;
     private bool _clearOnExit;
+    private bool _stripWasVisible;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -65,6 +68,7 @@ public partial class App : Application
 
         _stripModel = new StripViewModel { IsTopmost = _settings.StripTopmost };
         _strip = new StripWindow(_stripModel);
+        _capture = new CaptureController(_session, HideChrome, RestoreChrome);
         WireStrip();
         WireTray();
 
@@ -136,9 +140,19 @@ public partial class App : Application
         _tray.ExitRequested += (_, _) => ExitApp();
     }
 
-    // Снимок экрана подключается в задаче 8 плана.
-    private void StartNewCapture()
+    private void StartNewCapture() => _capture.StartNewCapture();
+
+    // На время снимка лента и уведомления прячутся, чтобы не попасть в кадр
+    private void HideChrome()
     {
+        _stripWasVisible = _strip.IsVisible;
+        if (_stripWasVisible) _strip.Hide();
+        Toasts.HideNow();
+    }
+
+    private void RestoreChrome()
+    {
+        if (_stripWasVisible) _strip.Show();
     }
 
     private void ShowStrip()
