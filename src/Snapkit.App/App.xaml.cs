@@ -6,12 +6,15 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Snapkit.App.Capturing;
 using Snapkit.App.Imaging;
+using Snapkit.App.Input;
+using Snapkit.App.Interop;
 using Snapkit.App.Notifications;
 using Snapkit.App.Rendering;
 using Snapkit.App.Session;
 using Snapkit.App.Shell;
 using Snapkit.App.Strip;
 using Snapkit.Core;
+using Snapkit.Core.Input;
 using Snapkit.Core.Session;
 using Snapkit.Core.Settings;
 using Forms = System.Windows.Forms;
@@ -37,6 +40,10 @@ public partial class App : Application
     private StripWindow _strip = null!;
     private TrayIcon? _tray;
     private CaptureController _capture = null!;
+    private KeyRouter _router = null!;
+    private KeyboardHookThread? _hook;
+    // Читается с потока хука клавиатуры
+    private volatile bool _hasUnsent;
     private bool _clearOnExit;
     private bool _stripWasVisible;
 
@@ -64,7 +71,11 @@ public partial class App : Application
             Log.Error("запись ленты на диск", ex);
             Toasts.Error("Не удалось сохранить ленту на диск: " + ex.Message);
         };
-        _session.Changed += (_, _) => RefreshStrip();
+        _session.Changed += (_, _) =>
+        {
+            _hasUnsent = _session.Model.UnsentCount > 0;
+            RefreshStrip();
+        };
 
         _stripModel = new StripViewModel { IsTopmost = _settings.StripTopmost };
         _strip = new StripWindow(_stripModel);
@@ -80,9 +91,11 @@ public partial class App : Application
             Toasts.Error("Не удалось восстановить ленту после сбоя");
         }
 
+        _hasUnsent = _session.Model.UnsentCount > 0;
         RefreshStrip();
         PlaceStrip();
         _strip.Show();
+        StartKeyboardHook();
 
         if (settingsWereReset) Toasts.Show("Файл настроек не читался, настройки созданы заново");
         if (restored > 0) Toasts.Show("Снимки восстановлены после сбоя");
@@ -97,6 +110,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _hook?.Dispose();
         _tray?.Dispose();
         if (_session is not null)
         {
@@ -142,6 +156,32 @@ public partial class App : Application
     }
 
     private void StartNewCapture() => _capture.StartNewCapture();
+
+    /// <summary>Глобальные клавиши: Print Screen — снимок, Ctrl+V — вставка пачки.</summary>
+    private void StartKeyboardHook()
+    {
+        _router = new KeyRouter(() => new PasteContext(_hasUnsent, IsPackageCurrent(), Foreground.IsOwn()));
+        _hook = new KeyboardHookThread(_router, action => Dispatcher.BeginInvoke(() => OnKeyAction(action)));
+        try { _hook.Start(); }
+        catch (Exception ex)
+        {
+            Log.Error("перехват клавиатуры", ex);
+            Toasts.Error("Не удалось перехватить клавиши: Print Screen и вставка пачки работать не будут");
+        }
+    }
+
+    // Пакет в буфере обмена появится в задаче 12 плана
+    private static bool IsPackageCurrent() => false;
+
+    private void OnKeyAction(KeyAction action)
+    {
+        switch (action)
+        {
+            case KeyAction.CaptureRegion:
+                StartNewCapture();
+                break;
+        }
+    }
 
     // На время снимка лента и уведомления прячутся, чтобы не попасть в кадр
     private void HideChrome()

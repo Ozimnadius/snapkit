@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Media.Imaging;
 using Snapkit.App.Editor;
 using Snapkit.App.Imaging;
+using Snapkit.App.Interop;
 using Snapkit.App.Notifications;
 using Snapkit.App.Session;
 using Snapkit.App.Shell;
@@ -37,7 +38,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
             return;
         }
 
-        _previousForeground = GetForegroundWindow();
+        _previousForeground = Foreground.Current;
         List<(MonitorInfo Monitor, BitmapSource Frame)> frames;
         try
         {
@@ -75,8 +76,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
 
         var underCursor = ScreenCapturer.MonitorUnderCursor();
         var active = _windows.FirstOrDefault(w => w.Monitor.Handle == underCursor.Handle) ?? _windows[0];
-        active.Activate();
-        active.Focus();
+        Foreground.Activate(active);
     }
 
     /// <summary>
@@ -92,7 +92,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
         MonitorInfo monitor;
         RectI local;
         BitmapSource frame;
-        _previousForeground = GetForegroundWindow();
+        _previousForeground = Foreground.Current;
         try
         {
             source = session.GetSource(captureId);
@@ -137,7 +137,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
         };
         _editor = editor;
         window.ShowEditor(editor);
-        window.Activate();
+        Foreground.Activate(window);
     }
 
     /// <summary>
@@ -191,7 +191,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
         };
         _editor = editor;
         window.ShowEditor(editor);
-        window.Activate();
+        Foreground.Activate(window);
     }
 
     private void CompleteNew(CaptureOverlayWindow window, RectI region, EditorResult result)
@@ -208,16 +208,9 @@ public sealed partial class CaptureController(SessionService session, Action hid
         _windows.Clear();
         _editor = null;
         restoreChrome();
-        if (_previousForeground != 0) SetForegroundWindow(_previousForeground);
+        Foreground.Restore(_previousForeground);
         Closed?.Invoke(this, EventArgs.Empty);
     }
-
-    [LibraryImport("user32.dll")]
-    private static partial nint GetForegroundWindow();
-
-    [LibraryImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool SetForegroundWindow(nint hWnd);
 
     [LibraryImport("dwmapi.dll")]
     private static partial int DwmFlush();
