@@ -17,6 +17,24 @@ public static class AnnotationPainter
     private static readonly Typeface PinFace = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
     private const double PinFontSize = 12;
 
+    /// <summary>
+    /// Все фигуры, затем кружки заметок поверх. letter == null — у кружков только номер
+    /// (миниатюра отправленного снимка).
+    /// </summary>
+    public static void DrawAll(DrawingContext dc, IEnumerable<Annotation> annotations, char? letter)
+    {
+        var list = annotations as IReadOnlyList<Annotation> ?? annotations.ToList();
+        foreach (var annotation in list) Draw(dc, annotation);
+        var number = 0;
+        foreach (var annotation in list)
+        {
+            if (!annotation.HasNote) continue;
+            number++;
+            var label = letter is { } l ? NoteNumbers.Label(l, number) : number.ToString();
+            DrawPin(dc, AnnotationGeometry.PinCenter(annotation), label);
+        }
+    }
+
     public static void Draw(DrawingContext dc, Annotation a)
     {
         var brush = Palette.Brush(a.Color);

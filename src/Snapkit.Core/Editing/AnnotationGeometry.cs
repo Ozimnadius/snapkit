@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Snapkit.Core.Model;
 
 namespace Snapkit.Core.Editing;
@@ -76,6 +77,16 @@ public static class AnnotationGeometry
             if (a.HasNote && Distance(p, PinCenter(a)) <= PinRadius + tolerance) return a.Id;
         }
         return null;
+    }
+
+    /// <summary>
+    /// Границы снимка поменялись: координаты фигур отсчитываются от левого верхнего угла области,
+    /// поэтому их сдвигаем обратно, чтобы на экране они остались на месте.
+    /// </summary>
+    public static ImmutableList<Annotation> ShiftForRegionChange(ImmutableList<Annotation> items, RectI oldRegion, RectI newRegion)
+    {
+        double dx = oldRegion.X - newRegion.X, dy = oldRegion.Y - newRegion.Y;
+        return dx == 0 && dy == 0 ? items : items.Select(a => Translate(a, dx, dy)).ToImmutableList();
     }
 
     public static Annotation Translate(Annotation a, double dx, double dy)

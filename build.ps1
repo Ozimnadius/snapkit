@@ -33,8 +33,17 @@ if ($running) {
 }
 
 Write-Host "4/5 Устанавливаю в $installDir..." -ForegroundColor Cyan
-# Папка принадлежит только Snapkit: старые файлы убираем, чтобы не осталось лишних
-if ((Test-Path $installDir) -and ($installDir -like '*\Programs\Snapkit')) { Remove-Item $installDir -Recurse -Force }
+# Папка принадлежит только Snapkit: старые файлы убираем, чтобы не осталось лишних.
+# Windows отпускает файлы остановленной программы не сразу — пробуем несколько раз.
+if ((Test-Path $installDir) -and ($installDir -like '*\Programs\Snapkit')) {
+    for ($attempt = 1; $attempt -le 10; $attempt++) {
+        try { Remove-Item $installDir -Recurse -Force -ErrorAction Stop; break }
+        catch {
+            if ($attempt -eq 10) { Write-Host 'Не удалось заменить файлы: программа ещё работает.' -ForegroundColor Red; exit 1 }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+}
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 Copy-Item -Path (Join-Path $publishDir '*') -Destination $installDir -Recurse -Force
 $exe = Join-Path $installDir 'Snapkit.exe'

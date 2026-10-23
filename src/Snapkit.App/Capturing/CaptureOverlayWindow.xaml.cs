@@ -6,6 +6,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using Snapkit.App.Editor;
 using Snapkit.App.Rendering;
 using Snapkit.Core;
 using Snapkit.Core.Editing;
@@ -58,9 +59,6 @@ public partial class CaptureOverlayWindow : Window
     public BitmapSource Frame { get; }
     public RectI? Region => _selection.Region;
 
-    /// <summary>Слой для панелей редактора поверх кадра.</summary>
-    public Canvas EditorCanvas => EditorLayer;
-
     public event EventHandler? SelectionStarted;
     public event EventHandler<RectI>? Confirmed;
     public event EventHandler? Cancelled;
@@ -90,13 +88,27 @@ public partial class CaptureOverlayWindow : Window
         set { _locked = value; Redraw(); }
     }
 
+    /// <summary>Рамку отпустили после выделения или изменения границ.</summary>
     public event EventHandler? RegionChanged;
+
+    /// <summary>Редактор, открытый в этом окне (после выделения области).</summary>
+    public EditorSurface? Editor { get; private set; }
+
+    public void ShowEditor(EditorSurface editor)
+    {
+        Editor = editor;
+        Hint.Visibility = Visibility.Collapsed;
+        EditorLayer.Children.Add(editor);
+        Redraw();
+    }
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (_locked) return;
         var p = Physical(e.GetPosition(Root));
         var handle = _selection.HitHandle(p, HandleHitRadius * Scale);
+        // В редакторе рамку можно только растягивать за маркеры: внутри рисуют, снаружи ничего не происходит
+        if (Editor is not null && handle is SelectionHandle.None or SelectionHandle.Move) return;
         if (e.ClickCount == 2 && handle == SelectionHandle.Move && _selection.Region is { } region)
         {
             Confirmed?.Invoke(this, region);
@@ -116,6 +128,7 @@ public partial class CaptureOverlayWindow : Window
         {
             _selection.Drag(p);
             Redraw();
+            if (Editor is not null && _selection.Region is { } live) Editor.SetRegion(live);
             return;
         }
         Root.Cursor = _selection.HitHandle(p, HandleHitRadius * Scale) switch
@@ -140,6 +153,11 @@ public partial class CaptureOverlayWindow : Window
 
     private void OnKeyDown(object sender, KeyEventArgs e)
     {
+        if (Editor is not null)
+        {
+            e.Handled = Editor.HandleKey(e);
+            return;
+        }
         if (e.Key == Key.Escape)
         {
             Cancelled?.Invoke(this, EventArgs.Empty);
@@ -159,7 +177,7 @@ public partial class CaptureOverlayWindow : Window
         var scale = Scale;
         var full = new Rect(0, 0, Monitor.Bounds.Width / scale, Monitor.Bounds.Height / scale);
         var region = _selection.Region;
-        Hint.Visibility = region is null && !_selection.IsDragging ? Visibility.Visible : Visibility.Collapsed;
+        Hint.Visibility = region is null && !_selection.IsDragging && Editor is null ? Visibility.Visible : Visibility.Collapsed;
 
         if (region is not { } r)
         {

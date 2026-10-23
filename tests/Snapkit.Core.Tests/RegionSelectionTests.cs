@@ -99,6 +99,16 @@ public class RegionSelectionTests
     }
 
     [Fact]
+    public void TinyResize_RevertsToPreviousRegion()
+    {
+        var s = Selected(new RectI(100, 100, 200, 100));
+        s.Begin(new PointD(300, 200), SelectionHandle.SouthEast);
+        s.Drag(new PointD(102, 101));
+        s.End();
+        Assert.Equal(new RectI(100, 100, 200, 100), s.Region);
+    }
+
+    [Fact]
     public void SelectAll_CoversMonitor()
     {
         var s = new RegionSelection(Monitor);

@@ -9,6 +9,7 @@ namespace Snapkit.Core.Editing;
 /// </summary>
 public sealed class AnnotationHistory(ImmutableList<Annotation> initial)
 {
+    private readonly ImmutableList<Annotation> _initial = initial;
     private readonly Stack<ImmutableList<Annotation>> _undo = new();
     private readonly Stack<ImmutableList<Annotation>> _redo = new();
 
@@ -17,7 +18,7 @@ public sealed class AnnotationHistory(ImmutableList<Annotation> initial)
     public bool CanRedo => _redo.Count > 0;
 
     /// <summary>Разметка отличается от той, с которой открыли редактор.</summary>
-    public bool IsChanged => !ReferenceEquals(Current, initial);
+    public bool IsChanged => !ReferenceEquals(Current, _initial);
 
     public void Push(ImmutableList<Annotation> next)
     {

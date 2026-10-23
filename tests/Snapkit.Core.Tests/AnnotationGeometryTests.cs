@@ -85,6 +85,21 @@ public class AnnotationGeometryTests
     }
 
     [Fact]
+    public void ShiftForRegionChange_KeepsShapesInPlaceOnScreen()
+    {
+        // Левая граница сдвинулась вправо на 30, верхняя вверх на 10 — фигуры смещаются обратно
+        var moved = AnnotationGeometry.ShiftForRegionChange([Box], new RectI(100, 100, 300, 200), new RectI(130, 90, 270, 210));
+        Assert.Equal(new[] { new PointD(-20, 20), new PointD(80, 70) }, moved[0].Points.ToArray());
+    }
+
+    [Fact]
+    public void ShiftForRegionChange_SameOrigin_ReturnsSameList()
+    {
+        var list = System.Collections.Immutable.ImmutableList.Create(Box);
+        Assert.Same(list, AnnotationGeometry.ShiftForRegionChange(list, new RectI(0, 0, 10, 10), new RectI(0, 0, 50, 50)));
+    }
+
+    [Fact]
     public void Translate_MovesAllPoints()
     {
         var moved = AnnotationGeometry.Translate(Box, 5, -3);

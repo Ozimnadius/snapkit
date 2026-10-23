@@ -2,8 +2,6 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Snapkit.App.Imaging;
-using Snapkit.Core;
-using Snapkit.Core.Editing;
 using Snapkit.Core.Model;
 
 namespace Snapkit.App.Rendering;
@@ -28,12 +26,7 @@ public static class CaptureRenderer
         {
             dc.PushTransform(new ScaleTransform(scale, scale));
             dc.DrawImage(source, new Rect(0, 0, capture.PixelWidth, capture.PixelHeight));
-            foreach (var annotation in capture.Annotations) AnnotationPainter.Draw(dc, annotation);
-            foreach (var (annotation, number) in NoteNumbers.Number(capture))
-            {
-                var label = letter is { } l ? NoteNumbers.Label(l, number) : number.ToString();
-                AnnotationPainter.DrawPin(dc, AnnotationGeometry.PinCenter(annotation), label);
-            }
+            AnnotationPainter.DrawAll(dc, capture.Annotations, letter);
             dc.Pop();
         }
 

@@ -40,10 +40,15 @@ public sealed class RegionSelection(RectI bounds)
         };
     }
 
+    /// <summary>
+    /// Закончить перетаскивание. Слишком маленькое новое выделение сбрасывается,
+    /// а слишком сжатая существующая рамка возвращается к прежнему размеру.
+    /// </summary>
     public void End()
     {
         IsDragging = false;
-        if (Region is { } r && (r.Width < MinSize || r.Height < MinSize)) Region = null;
+        if (Region is { } r && (r.Width < MinSize || r.Height < MinSize))
+            Region = _handle == SelectionHandle.None ? null : _startRegion;
     }
 
     /// <summary>Выделить весь монитор (снимок всего экрана).</summary>

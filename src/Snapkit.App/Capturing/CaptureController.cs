@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media.Imaging;
+using Snapkit.App.Editor;
 using Snapkit.App.Imaging;
 using Snapkit.App.Notifications;
 using Snapkit.App.Session;
@@ -20,6 +21,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
 {
     private readonly List<CaptureOverlayWindow> _windows = [];
     private nint _previousForeground;
+    private EditorSurface? _editor;
 
     public bool IsOpen => _windows.Count > 0;
 
@@ -59,7 +61,12 @@ public sealed partial class CaptureController(SessionService session, Action hid
             {
                 foreach (var other in _windows.Where(w => w != window)) other.ClearSelection();
             };
-            window.Confirmed += (_, region) => Complete(window, region);
+            window.RegionChanged += (_, _) =>
+            {
+                if (_editor is null && window.Region is not null) StartEditor(window);
+                else if (_editor is not null && window.Editor == _editor && window.Region is { } region) _editor.SetRegion(region);
+            };
+            window.Confirmed += (_, _) => _editor?.Finish();
             window.Cancelled += (_, _) => Close();
             _windows.Add(window);
             window.Show();
@@ -71,18 +78,49 @@ public sealed partial class CaptureController(SessionService session, Action hid
         active.Focus();
     }
 
-    private void Complete(CaptureOverlayWindow window, RectI region)
+    /// <summary>Область выделена — в этом окне открывается редактор, остальные мониторы больше не реагируют.</summary>
+    private void StartEditor(CaptureOverlayWindow window)
+    {
+        foreach (var other in _windows.Where(w => w != window)) other.SelectionLocked = true;
+
+        var scale = window.Scale;
+        var bounds = window.Monitor.Bounds;
+        var work = window.Monitor.WorkArea;
+        var context = new EditorContext(
+            new Size(bounds.Width / scale, bounds.Height / scale), scale, window.Region!.Value,
+            new RectI(work.X - bounds.X, work.Y - bounds.Y, work.Width, work.Height),
+            Background: null, Annotations: [], SnapshotNote: "",
+            Letter: (char)('A' + session.Model.UnsentCount), RegionEditable: true);
+
+        var editor = new EditorSurface(context);
+        editor.Done += (_, result) => CompleteNew(window, editor.Region, result);
+        editor.Cancelled += (_, _) =>
+        {
+            if (editor.IsChanged && MessageBox.Show(window, "Отменить снимок? Разметка будет потеряна.", "Snapkit",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                return;
+            }
+            Close();
+        };
+        _editor = editor;
+        window.ShowEditor(editor);
+        window.Activate();
+    }
+
+    private void CompleteNew(CaptureOverlayWindow window, RectI region, EditorResult result)
     {
         var crop = ImageCodecs.Normalize(new CroppedBitmap(window.Frame, new Int32Rect(region.X, region.Y, region.Width, region.Height)));
         var screenBounds = new RectI(window.Monitor.Bounds.X + region.X, window.Monitor.Bounds.Y + region.Y, region.Width, region.Height);
         Close();
-        session.AddCapture(crop, screenBounds, [], "");
+        session.AddCapture(crop, screenBounds, result.Annotations, result.SnapshotNote);
     }
 
     private void Close()
     {
         foreach (var window in _windows) window.Close();
         _windows.Clear();
+        _editor = null;
         restoreChrome();
         if (_previousForeground != 0) SetForegroundWindow(_previousForeground);
         Closed?.Invoke(this, EventArgs.Empty);
