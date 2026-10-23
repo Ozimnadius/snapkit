@@ -105,15 +105,18 @@
                                             <TextBlock Text="{Binding NoteCount}" Margin="5,0,0,0" FontWeight="SemiBold" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </StackPanel>
-                                    <Button x:Name="DeleteButton" Style="{StaticResource IconButton}" Content="&#xE8BB;"
-                                            ToolTip="Удалить снимок" Tag="{Binding Id}" Click="Delete_Click"
-                                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,3,3,0"
-                                            Foreground="White" Visibility="Hidden" />
+                                    <StackPanel x:Name="CardButtons" Orientation="Horizontal" HorizontalAlignment="Right"
+                                                VerticalAlignment="Top" Margin="0,3,3,0" Visibility="Hidden">
+                                        <Button Style="{StaticResource IconButton}" Content="&#xE8C8;" Foreground="White"
+                                                ToolTip="Копировать снимок" Tag="{Binding Id}" Click="Copy_Click" />
+                                        <Button Style="{StaticResource IconButton}" Content="&#xE8BB;" Foreground="White"
+                                                ToolTip="Удалить снимок" Tag="{Binding Id}" Click="Delete_Click" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                             <DataTemplate.Triggers>
                                 <Trigger SourceName="Card" Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="DeleteButton" Property="Visibility" Value="Visible" />
+                                    <Setter TargetName="CardButtons" Property="Visibility" Value="Visible" />
                                     <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
                                 </Trigger>
                             </DataTemplate.Triggers>

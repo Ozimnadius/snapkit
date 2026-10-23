@@ -30,6 +30,7 @@ public partial class StripWindow : Window
     public event EventHandler? NewCaptureRequested;
     public event EventHandler<Guid>? OpenCaptureRequested;
     public event EventHandler<Guid>? DeleteCaptureRequested;
+    public event EventHandler<Guid>? CopyCaptureRequested;
     public event EventHandler? ClearRequested;
     public event EventHandler? CloseRequested;
     public event EventHandler? PasteImageRequested;
@@ -61,6 +62,11 @@ public partial class StripWindow : Window
     private void Delete_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { Tag: Guid id }) DeleteCaptureRequested?.Invoke(this, id);
+    }
+
+    private void Copy_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Guid id }) CopyCaptureRequested?.Invoke(this, id);
     }
 
     private void More_Click(object sender, RoutedEventArgs e)

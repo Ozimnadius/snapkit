@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Snapkit.App.Capturing;
+using Snapkit.App.Clipboarding;
 using Snapkit.App.Imaging;
 using Snapkit.App.Input;
 using Snapkit.App.Interop;
@@ -40,6 +41,8 @@ public partial class App : Application
     private StripWindow _strip = null!;
     private TrayIcon? _tray;
     private CaptureController _capture = null!;
+    private ClipboardService? _clipboard;
+    private PackagePublisher _publisher = null!;
     private KeyRouter _router = null!;
     private KeyboardHookThread? _hook;
     // Читается с потока хука клавиатуры
@@ -71,15 +74,23 @@ public partial class App : Application
             Log.Error("запись ленты на диск", ex);
             Toasts.Error("Не удалось сохранить ленту на диск: " + ex.Message);
         };
-        _session.Changed += (_, _) =>
+        _clipboard = new ClipboardService();
+        _publisher = new PackagePublisher(_session, _clipboard);
+        _clipboard.ClipboardChanged += (_, _) => UpdatePackageDisplaced();
+        _session.Changed += (_, change) =>
         {
             _hasUnsent = _session.Model.UnsentCount > 0;
             RefreshStrip();
+            OnSessionChangedForClipboard(change);
+            UpdatePackageDisplaced();
         };
 
         _stripModel = new StripViewModel { IsTopmost = _settings.StripTopmost };
         _strip = new StripWindow(_stripModel);
-        _capture = new CaptureController(_session, HideChrome, RestoreChrome);
+        _capture = new CaptureController(_session, HideChrome, RestoreChrome)
+        {
+            CopyImage = image => _publisher.CopyImageAsync(image),
+        };
         WireStrip();
         WireTray();
 
@@ -112,6 +123,7 @@ public partial class App : Application
     {
         _hook?.Dispose();
         _tray?.Dispose();
+        _clipboard?.Dispose();
         if (_session is not null)
         {
             if (_clearOnExit) _session.ClearAll();
@@ -133,6 +145,8 @@ public partial class App : Application
             _strip.Hide();
         };
         _strip.PasteImageRequested += (_, _) => ImportImageFromClipboard();
+        _strip.CopyPackageRequested += (_, _) => RunClipboard(_publisher.CopyPackageCommandAsync);
+        _strip.CopyCaptureRequested += (_, id) => RunClipboard(() => _publisher.CopyCaptureAsync(id));
         _strip.ExitRequested += (_, _) => ExitApp();
         _strip.TopmostToggled += (_, topmost) =>
         {
@@ -170,8 +184,44 @@ public partial class App : Application
         }
     }
 
-    // Пакет в буфере обмена появится в задаче 12 плана
-    private static bool IsPackageCurrent() => false;
+    // Вызывается с потока хука клавиатуры
+    private bool IsPackageCurrent() => _clipboard?.IsPackageCurrent() ?? false;
+
+    /// <summary>
+    /// После снимка или правки в буфер ложится пакет. После удаления — только если пакет
+    /// и так наш, чтобы не затирать то, что пользователь скопировал сам.
+    /// </summary>
+    private void OnSessionChangedForClipboard(SessionChange change)
+    {
+        var republish = change.Kind switch
+        {
+            SessionChangeKind.Added or SessionChangeKind.Updated => change.CaptureId is not null,
+            SessionChangeKind.Removed => IsPackageCurrent(),
+            _ => false,
+        };
+        if (republish && _session.Model.UnsentCount > 0) RunClipboard(_publisher.PublishPackageAsync);
+    }
+
+    private void UpdatePackageDisplaced()
+        => _stripModel.PackageDisplaced = _session.Model.UnsentCount > 0 && !IsPackageCurrent();
+
+    private async void RunClipboard(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (ClipboardBusyException)
+        {
+            Toasts.Error("Буфер обмена занят другой программой. Повторите");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("буфер обмена", ex);
+            Toasts.Error("Не удалось положить снимки в буфер обмена");
+        }
+        UpdatePackageDisplaced();
+    }
 
     private void OnKeyAction(KeyAction action)
     {

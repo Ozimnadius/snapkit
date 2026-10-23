@@ -1,10 +1,12 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media.Imaging;
+using Snapkit.App.Clipboarding;
 using Snapkit.App.Editor;
 using Snapkit.App.Imaging;
 using Snapkit.App.Interop;
 using Snapkit.App.Notifications;
+using Snapkit.App.Rendering;
 using Snapkit.App.Session;
 using Snapkit.App.Shell;
 using Snapkit.Core;
@@ -26,6 +28,9 @@ public sealed partial class CaptureController(SessionService session, Action hid
     private EditorSurface? _editor;
 
     public bool IsOpen => _windows.Count > 0;
+
+    /// <summary>Положить картинку в буфер обмена (Ctrl+Shift+C в редакторе).</summary>
+    public Func<BitmapSource, Task>? CopyImage { get; set; }
 
     public event EventHandler? Closed;
 
@@ -120,6 +125,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
         var letters = CaptureLetters.Assign(session.Model.Captures.Select(c => c.Id == captureId ? c with { IsSent = false } : c));
         var editor = new EditorSurface(CreateContext(window, window.Region ?? local, source, capture.Annotations,
             capture.SnapshotNote, letters[captureId], regionEditable: false));
+        editor.CopyRequested += (_, _) => CopyFromEditor(editor, source, letters[captureId]);
         editor.Done += (_, result) =>
         {
             Close();
@@ -180,6 +186,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
         var editor = new EditorSurface(CreateContext(window, window.Region!.Value, background: null, [], "",
             (char)('A' + session.Model.UnsentCount), regionEditable: true));
         editor.Done += (_, result) => CompleteNew(window, editor.Region, result);
+        editor.CopyRequested += (_, _) => CopyFromEditor(editor, Crop(window.Frame, editor.Region), editor.Letter);
         editor.Cancelled += (_, _) =>
         {
             if (editor.IsChanged && MessageBox.Show(window, "Отменить снимок? Разметка будет потеряна.", "Snapkit",
@@ -194,9 +201,29 @@ public sealed partial class CaptureController(SessionService session, Action hid
         Foreground.Activate(window);
     }
 
+    private static BitmapSource Crop(BitmapSource frame, RectI region)
+        => ImageCodecs.Normalize(new CroppedBitmap(frame, new Int32Rect(region.X, region.Y, region.Width, region.Height)));
+
+    // Снимок с текущей разметкой из редактора — как обычная картинка в буфер
+    private async void CopyFromEditor(EditorSurface editor, BitmapSource source, char letter)
+    {
+        if (CopyImage is null) return;
+        try
+        {
+            var draft = new Capture(Guid.Empty, source.PixelWidth, source.PixelHeight, editor.Region,
+                editor.CurrentAnnotations, "", false, DateTimeOffset.Now);
+            await CopyImage(CaptureRenderer.Render(source, draft, letter));
+            Toasts.Show("Снимок скопирован");
+        }
+        catch (ClipboardBusyException)
+        {
+            Toasts.Error("Буфер обмена занят другой программой. Повторите");
+        }
+    }
+
     private void CompleteNew(CaptureOverlayWindow window, RectI region, EditorResult result)
     {
-        var crop = ImageCodecs.Normalize(new CroppedBitmap(window.Frame, new Int32Rect(region.X, region.Y, region.Width, region.Height)));
+        var crop = Crop(window.Frame, region);
         var screenBounds = new RectI(window.Monitor.Bounds.X + region.X, window.Monitor.Bounds.Y + region.Y, region.Width, region.Height);
         Close();
         session.AddCapture(crop, screenBounds, result.Annotations, result.SnapshotNote);
