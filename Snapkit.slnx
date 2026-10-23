@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Snapkit.App/Snapkit.App.csproj" />
+    <Project Path="src/Snapkit.Core/Snapkit.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Snapkit.App.Tests/Snapkit.App.Tests.csproj" />
+    <Project Path="tests/Snapkit.Core.Tests/Snapkit.Core.Tests.csproj" />
+  </Folder>
+</Solution>

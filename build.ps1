@@ -1,0 +1,52 @@
+﻿# Сборка и установка Snapkit одной командой:
+#   powershell -ExecutionPolicy Bypass -File build.ps1
+# Порядок: тесты → публикация → остановка работающей программы → замена файлов → ярлык → запуск.
+
+$ErrorActionPreference = 'Stop'
+Set-Location $PSScriptRoot
+
+$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+$env:DOTNET_NOLOGO = '1'
+
+# dotnet может ещё не быть в PATH, если SDK поставили только что
+$dotnet = (Get-Command dotnet -ErrorAction SilentlyContinue).Source
+if (-not $dotnet) { $dotnet = Join-Path $env:ProgramFiles 'dotnet\dotnet.exe' }
+if (-not (Test-Path $dotnet)) { throw 'Не найден .NET SDK. Установите его: winget install Microsoft.DotNet.SDK.10' }
+
+$installDir = Join-Path $env:LOCALAPPDATA 'Programs\Snapkit'
+$publishDir = Join-Path $PSScriptRoot 'artifacts\publish'
+
+Write-Host '1/5 Запускаю тесты...' -ForegroundColor Cyan
+& $dotnet test Snapkit.slnx --filter 'Category!=Clipboard' --nologo -v q
+if ($LASTEXITCODE -ne 0) { Write-Host 'Тесты не прошли, сборка остановлена.' -ForegroundColor Red; exit 1 }
+
+Write-Host '2/5 Собираю программу...' -ForegroundColor Cyan
+if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
+& $dotnet publish src/Snapkit.App -c Release -r win-x64 --self-contained true -o $publishDir --nologo -v q
+if ($LASTEXITCODE -ne 0) { Write-Host 'Сборка не удалась.' -ForegroundColor Red; exit 1 }
+
+Write-Host '3/5 Останавливаю работающий Snapkit...' -ForegroundColor Cyan
+$running = Get-Process -Name Snapkit -ErrorAction SilentlyContinue
+if ($running) {
+    $running | Stop-Process -Force
+    $running | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+}
+
+Write-Host "4/5 Устанавливаю в $installDir..." -ForegroundColor Cyan
+# Папка принадлежит только Snapkit: старые файлы убираем, чтобы не осталось лишних
+if ((Test-Path $installDir) -and ($installDir -like '*\Programs\Snapkit')) { Remove-Item $installDir -Recurse -Force }
+New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+Copy-Item -Path (Join-Path $publishDir '*') -Destination $installDir -Recurse -Force
+$exe = Join-Path $installDir 'Snapkit.exe'
+
+$shortcutPath = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Snapkit.lnk'
+$shell = New-Object -ComObject WScript.Shell
+$shortcut = $shell.CreateShortcut($shortcutPath)
+$shortcut.TargetPath = $exe
+$shortcut.WorkingDirectory = $installDir
+$shortcut.Description = 'Snapkit — снимки экрана с комментариями для ИИ'
+$shortcut.Save()
+
+Write-Host '5/5 Запускаю Snapkit...' -ForegroundColor Cyan
+Start-Process -FilePath $exe -WorkingDirectory $installDir
+Write-Host 'Готово.' -ForegroundColor Green
