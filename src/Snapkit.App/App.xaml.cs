@@ -10,6 +10,7 @@ using Snapkit.App.Imaging;
 using Snapkit.App.Input;
 using Snapkit.App.Interop;
 using Snapkit.App.Notifications;
+using Snapkit.App.Paste;
 using Snapkit.App.Rendering;
 using Snapkit.App.Session;
 using Snapkit.App.Shell;
@@ -44,6 +45,7 @@ public partial class App : Application
     private ClipboardService? _clipboard;
     private PackagePublisher _publisher = null!;
     private KeyRouter _router = null!;
+    private PasteCoordinator? _paste;
     private KeyboardHookThread? _hook;
     // Читается с потока хука клавиатуры
     private volatile bool _hasUnsent;
@@ -175,6 +177,7 @@ public partial class App : Application
     private void StartKeyboardHook()
     {
         _router = new KeyRouter(() => new PasteContext(_hasUnsent, IsPackageCurrent(), Foreground.IsOwn()));
+        _paste = new PasteCoordinator(_session, _clipboard!, _router, () => _settings.ClearStripAfterPaste);
         _hook = new KeyboardHookThread(_router, action => Dispatcher.BeginInvoke(() => OnKeyAction(action)));
         try { _hook.Start(); }
         catch (Exception ex)
@@ -230,7 +233,30 @@ public partial class App : Application
             case KeyAction.CaptureRegion:
                 StartNewCapture();
                 break;
+            case KeyAction.PasteBatch:
+                PasteBatch();
+                break;
         }
+    }
+
+    private async void PasteBatch()
+    {
+        if (_paste is null) return;
+        try
+        {
+            var outcome = await _paste.PasteBatchAsync();
+            Log.Info($"Вставка пачки: {outcome}");
+            var message = PasteCoordinator.Describe(outcome);
+            if (message.Length == 0) return;
+            if (outcome.Status is PasteStatus.CompletedVerified or PasteStatus.CompletedUnverified) Toasts.Show(message);
+            else Toasts.Error(message);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("вставка пачки", ex);
+            Toasts.Error("Вставка не удалась: " + ex.Message);
+        }
+        UpdatePackageDisplaced();
     }
 
     // На время снимка лента и уведомления прячутся, чтобы не попасть в кадр

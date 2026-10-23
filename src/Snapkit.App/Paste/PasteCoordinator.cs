@@ -1,0 +1,118 @@
+using Snapkit.App.Clipboarding;
+using Snapkit.App.Imaging;
+using Snapkit.App.Input;
+using Snapkit.App.Interop;
+using Snapkit.App.Rendering;
+using Snapkit.App.Session;
+using Snapkit.Core;
+using Snapkit.Core.Input;
+
+namespace Snapkit.App.Paste;
+
+public enum PasteStatus { CompletedVerified, CompletedUnverified, StoppedTargetChanged, StoppedByUser, ClipboardBusy, NothingToPaste }
+
+public sealed record PasteOutcome(PasteStatus Status, int ImagesPasted, int NotesCount);
+
+/// <summary>
+/// Вставка пачки по перехваченному Ctrl+V: каждая картинка, затем текст — через буфер обмена
+/// и программный Ctrl+V. Enter не нажимается никогда: сообщение отправляет пользователь.
+/// </summary>
+/// <param name="clearAfterPaste">Настройка «Очищать ленту после вставки».</param>
+public sealed class PasteCoordinator(SessionService session, ClipboardService clipboard, KeyRouter router, Func<bool> clearAfterPaste)
+{
+    // Сколько ждать, пока окно заберёт данные из буфера, и паузы между шагами.
+    // Подобраны на проверке: при меньших паузах Chromium иногда теряет картинку.
+    private static readonly TimeSpan ConfirmTimeout = TimeSpan.FromMilliseconds(1500);
+    private static readonly TimeSpan VerifiedPause = TimeSpan.FromMilliseconds(120);
+    private static readonly TimeSpan UnverifiedPause = TimeSpan.FromMilliseconds(400);
+    private static readonly TimeSpan KeyReleaseWait = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan KeyPoll = TimeSpan.FromMilliseconds(15);
+    // AutoHotkey после своего Ctrl+V возвращает Shift — даём ему закончить
+    private static readonly TimeSpan SettleAfterRelease = TimeSpan.FromMilliseconds(40);
+
+    public bool IsRunning { get; private set; }
+
+    public async Task<PasteOutcome> PasteBatchAsync()
+    {
+        if (IsRunning) return new PasteOutcome(PasteStatus.NothingToPaste, 0, 0);
+        IsRunning = true;
+        router.EscapePressedDuringPaste = false;
+        router.PasteInProgress = true;
+        try
+        {
+            var target = Foreground.Current;
+            var targetPid = Foreground.ProcessOf(target);
+            var package = PackageSelector.Select(session.Model.Captures);
+            if (package.Count == 0) return new PasteOutcome(PasteStatus.NothingToPaste, 0, 0);
+
+            // Всё готовим заранее, чтобы между вставками не было долгих пауз
+            var steps = new List<ClipboardPayload>();
+            foreach (var (letter, capture) in package)
+            {
+                var image = CaptureRenderer.Render(session.GetSource(capture.Id), capture, letter);
+                steps.Add(new ClipboardPayload(ImageCodecs.EncodePng(image), ImageCodecs.EncodeDib(image), null));
+            }
+            var text = PromptBuilder.Build(package);
+            if (text.Length > 0) steps.Add(new ClipboardPayload(null, null, text));
+            var notes = package.Sum(p => p.Capture.NoteCount);
+
+            await WaitForCtrlRelease();
+
+            var verified = true;
+            var images = 0;
+            foreach (var step in steps)
+            {
+                if (Foreground.Current != target) return new PasteOutcome(PasteStatus.StoppedTargetChanged, images, notes);
+                if (router.EscapePressedDuringPaste) return new PasteOutcome(PasteStatus.StoppedByUser, images, notes);
+
+                var taken = clipboard.ExpectRender(targetPid, ConfirmTimeout);
+                await clipboard.PublishAsync(step, ClipboardKind.PasteStep, excludeFromHistory: true);
+                InputSender.Send(PasteKeys.CtrlV(router.Logical));
+                var confirmed = await taken;
+                verified &= confirmed;
+                if (step.Png is not null) images++;
+                await Task.Delay(confirmed ? VerifiedPause : UnverifiedPause);
+            }
+
+            session.MarkSent(package.Select(p => p.Capture.Id));
+            if (clearAfterPaste()) session.ClearAll();
+            return new PasteOutcome(verified ? PasteStatus.CompletedVerified : PasteStatus.CompletedUnverified, images, notes);
+        }
+        catch (ClipboardBusyException)
+        {
+            return new PasteOutcome(PasteStatus.ClipboardBusy, 0, 0);
+        }
+        finally
+        {
+            // Ни одна клавиша не должна остаться залипшей
+            InputSender.Send(PasteKeys.Restore(router.Physical, router.Logical));
+            router.PasteInProgress = false;
+            IsRunning = false;
+        }
+    }
+
+    private async Task WaitForCtrlRelease()
+    {
+        var deadline = DateTime.UtcNow + KeyReleaseWait;
+        while ((router.Logical & (Mod.LCtrl | Mod.RCtrl)) != 0 && DateTime.UtcNow < deadline)
+            await Task.Delay(KeyPoll);
+        await Task.Delay(SettleAfterRelease);
+    }
+
+    /// <summary>Сообщение для пользователя по итогу вставки.</summary>
+    public static string Describe(PasteOutcome outcome)
+    {
+        var images = RussianPlural.Format(outcome.ImagesPasted, "изображение", "изображения", "изображений");
+        var notes = RussianPlural.Format(outcome.NotesCount, "заметка", "заметки", "заметок");
+        var summary = outcome.NotesCount > 0 ? $"{images} и {notes}" : images;
+        return outcome.Status switch
+        {
+            PasteStatus.CompletedVerified => $"Вставлено: {summary}",
+            PasteStatus.CompletedUnverified => $"Вставлено: {summary}. Проверить вставку не удалось",
+            PasteStatus.StoppedTargetChanged => "Вставка остановлена: окно сменилось",
+            PasteStatus.StoppedByUser => "Вставка остановлена",
+            PasteStatus.ClipboardBusy => "Буфер обмена занят другой программой. Повторите вставку",
+            _ => "",
+        };
+    }
+}
