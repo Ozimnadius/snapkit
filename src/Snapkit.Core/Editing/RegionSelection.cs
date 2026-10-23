@@ -51,6 +51,16 @@ public sealed class RegionSelection(RectI bounds)
             Region = _handle == SelectionHandle.None ? null : _startRegion;
     }
 
+    /// <summary>Поставить рамку на заданное место (повторное открытие снимка).</summary>
+    public void Select(RectI region)
+    {
+        var left = Math.Clamp(region.X, bounds.X, bounds.Right);
+        var top = Math.Clamp(region.Y, bounds.Y, bounds.Bottom);
+        var right = Math.Clamp(region.Right, left, bounds.Right);
+        var bottom = Math.Clamp(region.Bottom, top, bounds.Bottom);
+        Region = new RectI(left, top, right - left, bottom - top);
+    }
+
     /// <summary>Выделить весь монитор (снимок всего экрана).</summary>
     public void SelectAll() => Region = bounds;
 

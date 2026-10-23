@@ -109,6 +109,14 @@ public class RegionSelectionTests
     }
 
     [Fact]
+    public void Select_SetsRegionClampedToMonitor()
+    {
+        var s = new RegionSelection(Monitor);
+        s.Select(new RectI(900, 700, 300, 300));
+        Assert.Equal(new RectI(900, 700, 100, 100), s.Region);
+    }
+
+    [Fact]
     public void SelectAll_CoversMonitor()
     {
         var s = new RegionSelection(Monitor);

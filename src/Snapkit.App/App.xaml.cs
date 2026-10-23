@@ -110,6 +110,7 @@ public partial class App : Application
     {
         _strip.NewCaptureRequested += (_, _) => StartNewCapture();
         _strip.DeleteCaptureRequested += (_, id) => _session.Remove(id);
+        _strip.OpenCaptureRequested += (_, id) => _capture.Reopen(id);
         _strip.ClearRequested += (_, _) => { if (ConfirmClear()) _session.ClearAll(); };
         _strip.CloseRequested += (_, _) =>
         {

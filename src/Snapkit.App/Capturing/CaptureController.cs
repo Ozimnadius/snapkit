@@ -7,6 +7,7 @@ using Snapkit.App.Notifications;
 using Snapkit.App.Session;
 using Snapkit.App.Shell;
 using Snapkit.Core;
+using Snapkit.Core.Model;
 using Snapkit.Core.Session;
 
 namespace Snapkit.App.Capturing;
@@ -78,21 +79,106 @@ public sealed partial class CaptureController(SessionService session, Action hid
         active.Focus();
     }
 
+    /// <summary>
+    /// Открыть снимок из ленты: он встаёт на то же место экрана, где его сняли,
+    /// поверх свежего кадра монитора. Границы снимка в этом режиме не меняются.
+    /// </summary>
+    public void Reopen(Guid captureId)
+    {
+        if (IsOpen) return;
+        if (session.Model.Captures.FirstOrDefault(c => c.Id == captureId) is not { } capture) return;
+
+        BitmapSource source;
+        MonitorInfo monitor;
+        RectI local;
+        BitmapSource frame;
+        _previousForeground = GetForegroundWindow();
+        try
+        {
+            source = session.GetSource(captureId);
+            (monitor, local) = PlaceForReopen(capture.ScreenBounds);
+            hideChrome();
+            DwmFlush();
+            DwmFlush();
+            frame = ScreenCapturer.Capture(monitor.Bounds);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("открытие снимка", ex);
+            restoreChrome();
+            Toasts.Error("Не удалось открыть снимок");
+            return;
+        }
+
+        var window = new CaptureOverlayWindow(monitor, frame) { SelectionLocked = true };
+        window.Cancelled += (_, _) => Close();
+        _windows.Add(window);
+        window.Show();
+        window.PresetRegion(local);
+
+        // Буква — та, которую снимок получит, если после правки снова станет неотправленным
+        var letters = CaptureLetters.Assign(session.Model.Captures.Select(c => c.Id == captureId ? c with { IsSent = false } : c));
+        var editor = new EditorSurface(CreateContext(window, window.Region ?? local, source, capture.Annotations,
+            capture.SnapshotNote, letters[captureId], regionEditable: false));
+        editor.Done += (_, result) =>
+        {
+            Close();
+            if (result.IsChanged)
+                session.UpdateCapture(capture with { Annotations = result.Annotations, SnapshotNote = result.SnapshotNote });
+        };
+        editor.Cancelled += (_, _) =>
+        {
+            if (editor.IsChanged && MessageBox.Show(window, "Закрыть без сохранения? Изменения будут потеряны.", "Snapkit",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                return;
+            }
+            Close();
+        };
+        _editor = editor;
+        window.ShowEditor(editor);
+        window.Activate();
+    }
+
+    /// <summary>
+    /// Монитор и место снимка: там, где его сняли. Если того монитора больше нет —
+    /// основной монитор, снимок по центру рабочей области.
+    /// </summary>
+    private static (MonitorInfo Monitor, RectI Local) PlaceForReopen(RectI screenBounds)
+    {
+        var monitors = ScreenCapturer.GetMonitors();
+        var centerX = screenBounds.X + screenBounds.Width / 2;
+        var centerY = screenBounds.Y + screenBounds.Height / 2;
+        if (monitors.FirstOrDefault(m => m.Contains(centerX, centerY)) is { } home)
+        {
+            return (home, new RectI(screenBounds.X - home.Bounds.X, screenBounds.Y - home.Bounds.Y, screenBounds.Width, screenBounds.Height));
+        }
+        var primary = monitors.First(m => m.IsPrimary);
+        var work = primary.WorkArea;
+        var x = Math.Max(work.X, work.X + (work.Width - screenBounds.Width) / 2) - primary.Bounds.X;
+        var y = Math.Max(work.Y, work.Y + (work.Height - screenBounds.Height) / 2) - primary.Bounds.Y;
+        return (primary, new RectI(x, y, screenBounds.Width, screenBounds.Height));
+    }
+
+    private static EditorContext CreateContext(CaptureOverlayWindow window, RectI region, BitmapSource? background,
+        System.Collections.Immutable.ImmutableList<Annotation> annotations, string snapshotNote, char letter, bool regionEditable)
+    {
+        var scale = window.Scale;
+        var bounds = window.Monitor.Bounds;
+        var work = window.Monitor.WorkArea;
+        return new EditorContext(
+            new Size(bounds.Width / scale, bounds.Height / scale), scale, region,
+            new RectI(work.X - bounds.X, work.Y - bounds.Y, work.Width, work.Height),
+            background, annotations, snapshotNote, letter, regionEditable);
+    }
+
     /// <summary>Область выделена — в этом окне открывается редактор, остальные мониторы больше не реагируют.</summary>
     private void StartEditor(CaptureOverlayWindow window)
     {
         foreach (var other in _windows.Where(w => w != window)) other.SelectionLocked = true;
 
-        var scale = window.Scale;
-        var bounds = window.Monitor.Bounds;
-        var work = window.Monitor.WorkArea;
-        var context = new EditorContext(
-            new Size(bounds.Width / scale, bounds.Height / scale), scale, window.Region!.Value,
-            new RectI(work.X - bounds.X, work.Y - bounds.Y, work.Width, work.Height),
-            Background: null, Annotations: [], SnapshotNote: "",
-            Letter: (char)('A' + session.Model.UnsentCount), RegionEditable: true);
-
-        var editor = new EditorSurface(context);
+        var editor = new EditorSurface(CreateContext(window, window.Region!.Value, background: null, [], "",
+            (char)('A' + session.Model.UnsentCount), regionEditable: true));
         editor.Done += (_, result) => CompleteNew(window, editor.Region, result);
         editor.Cancelled += (_, _) =>
         {

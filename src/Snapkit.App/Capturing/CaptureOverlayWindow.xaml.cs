@@ -74,6 +74,13 @@ public partial class CaptureOverlayWindow : Window
         Redraw();
     }
 
+    /// <summary>Поставить рамку на заданное место (повторное открытие снимка).</summary>
+    public void PresetRegion(RectI region)
+    {
+        _selection.Select(region);
+        Redraw();
+    }
+
     /// <summary>Выделить весь монитор.</summary>
     public void SelectAll()
     {

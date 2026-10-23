@@ -26,6 +26,9 @@ internal sealed class EditorCanvas : FrameworkElement
 
     public Guid? SelectedId { get; set; }
 
+    /// <summary>Кружок, к которому сейчас пишут первую заметку: рисуется со следующим номером.</summary>
+    public Guid? PendingPinId { get; set; }
+
     /// <summary>Левый верхний угол области в координатах монитора: фигуры хранятся в них.</summary>
     public PointD Offset { get; set; }
     public char Letter { get; set; } = 'A';
@@ -43,6 +46,11 @@ internal sealed class EditorCanvas : FrameworkElement
 
         var items = Preview is null ? Items : Items.Append(Preview).ToList();
         AnnotationPainter.DrawAll(dc, items, Letter);
+        if (PendingPinId is { } pendingId && Items.FirstOrDefault(a => a.Id == pendingId) is { HasNote: false } pending)
+        {
+            var next = Items.Count(a => a.HasNote) + 1;
+            AnnotationPainter.DrawPin(dc, AnnotationGeometry.PinCenter(pending), $"{Letter}{next}");
+        }
 
         if (SelectedId is { } id && Items.FirstOrDefault(a => a.Id == id) is { } selected)
         {
