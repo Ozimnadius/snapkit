@@ -231,26 +231,6 @@ public partial class App : Application
                 if (!_session.Restore(removed)) Toasts.Show("В ленте нет места, чтобы вернуть снимок");
             });
         };
-        _strip.ToggleSentRequested += (_, id) =>
-        {
-            if (_session.Model.Captures.FirstOrDefault(c => c.Id == id) is not { } capture) return;
-            _session.SetSent(id, !capture.IsSent);
-            PublishPackageIfUnsent();
-        };
-        _strip.ResendLastRequested += (_, _) =>
-        {
-            if (!_session.ResendLastPaste())
-            {
-                Toasts.Show("Снимков последней вставки в ленте уже нет");
-                return;
-            }
-            PublishPackageIfUnsent();
-        };
-        _strip.ResendAllRequested += (_, _) =>
-        {
-            _session.MarkAllUnsent();
-            PublishPackageIfUnsent();
-        };
         _strip.OpenCaptureRequested += (_, id) => _capture.Reopen(id);
         _strip.ClearRequested += (_, _) => { if (ConfirmClear()) _session.ClearAll(); };
         _strip.CloseRequested += (_, _) =>
@@ -516,13 +496,6 @@ public partial class App : Application
         if (action == ClipboardAction.Package) RunClipboard(_publisher.PublishPackageAsync);
     }
 
-    /// <summary>Пачку поменяли с ленты — пакет снова в буфер, и следующий Ctrl+V в любом окне вставит её.</summary>
-    private void PublishPackageIfUnsent()
-    {
-        if (_session.Model.UnsentCount > 0) RunClipboard(_publisher.PublishPackageAsync);
-        else UpdatePasteState();
-    }
-
     private void UpdatePackageDisplaced()
         => _stripModel.PackageDisplaced = _session.Model.UnsentCount > 0 && !IsPackageCurrent();
 
@@ -581,7 +554,6 @@ public partial class App : Application
             Log.Error("вставка пачки", ex);
             Toasts.Error("Вставка не удалась. Подробности — в журнале");
         }
-        _stripModel.CanResendLast = _session.HasLastPaste;
         UpdatePasteState();
     }
 
@@ -609,7 +581,6 @@ public partial class App : Application
 
     private void RefreshStrip()
     {
-        _stripModel.CanResendLast = _session.HasLastPaste;
         var thumbnailPixels = (int)Math.Ceiling(ThumbnailWidth * VisualTreeHelper.GetDpi(_strip).DpiScaleX);
         _stripModel.Refresh(_session.Model.Captures, (capture, letter) =>
         {

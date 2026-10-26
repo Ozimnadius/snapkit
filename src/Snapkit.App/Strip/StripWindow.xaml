@@ -84,34 +84,17 @@
                                     <Border Margin="3,2,0,0" Height="22" Padding="1,1,7,1" CornerRadius="11" Background="#B31E2128"
                                             HorizontalAlignment="Left" VerticalAlignment="Top">
                                         <StackPanel Orientation="Horizontal">
-                                            <!-- Значок — кнопка: щелчок убирает снимок из пачки или возвращает в неё, редактор не открывается -->
-                                            <Button Tag="{Binding Id}" Click="Badge_Click" ToolTip="{Binding BadgeToolTip}"
-                                                    Cursor="Hand" Focusable="False">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Grid>
-                                                            <ContentPresenter />
-                                                            <Ellipse x:Name="Ring" Stroke="White" StrokeThickness="1.5" Visibility="Hidden" />
-                                                        </Grid>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                                <Grid Width="20" Height="20">
-                                                    <Ellipse Fill="{StaticResource AccentBrush}"
-                                                             Visibility="{Binding Letter, Converter={StaticResource NotNullToVisibility}}" />
-                                                    <TextBlock Text="{Binding Letter}" Foreground="White" FontWeight="Bold" FontSize="11"
-                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                    <Ellipse Fill="#40FFFFFF"
-                                                             Visibility="{Binding IsSent, Converter={StaticResource BoolToVisibility}}" />
-                                                    <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="White"
-                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                               Visibility="{Binding IsSent, Converter={StaticResource BoolToVisibility}}" />
-                                                </Grid>
-                                            </Button>
+                                            <Grid Width="20" Height="20">
+                                                <Ellipse Fill="{StaticResource AccentBrush}"
+                                                         Visibility="{Binding Letter, Converter={StaticResource NotNullToVisibility}}" />
+                                                <TextBlock Text="{Binding Letter}" Foreground="White" FontWeight="Bold" FontSize="11"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                <Ellipse Fill="#40FFFFFF"
+                                                         Visibility="{Binding IsSent, Converter={StaticResource BoolToVisibility}}" />
+                                                <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="White"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Visibility="{Binding IsSent, Converter={StaticResource BoolToVisibility}}" />
+                                            </Grid>
                                             <!-- Число заметок — всегда, и 0 тоже, как у Snapik -->
                                             <StackPanel Orientation="Horizontal" Margin="7,0,0,0" VerticalAlignment="Center">
                                                 <TextBlock Text="&#xE90A;" FontFamily="{StaticResource IconFont}" FontSize="12"

@@ -74,23 +74,6 @@ public sealed class SessionModel
     /// <summary>Есть место для нового снимка: лента не полна или в ней есть отправленный, которого можно вытеснить.</summary>
     public bool CanMakeRoom => !IsFull || _captures.Any(c => c.IsSent);
 
-    /// <summary>Отметка «отправлен» одного снимка (щелчок по значку карточки). Неизвестный Id — ничего.</summary>
-    public void SetSent(Guid id, bool isSent)
-    {
-        var index = _captures.FindIndex(c => c.Id == id);
-        if (index < 0 || _captures[index].IsSent == isSent) return;
-        _captures[index] = _captures[index] with { IsSent = isSent };
-        RaiseChanged();
-    }
-
-    /// <summary>«Повторить последнюю вставку»: эти снимки — неотправленные, остальные — отправленные. Отсутствующие Id пропускаются.</summary>
-    public void ResendOnly(IReadOnlyCollection<Guid> ids)
-    {
-        var set = ids.ToHashSet();
-        for (var i = 0; i < _captures.Count; i++) _captures[i] = _captures[i] with { IsSent = !set.Contains(_captures[i].Id) };
-        RaiseChanged();
-    }
-
     /// <summary>Поставить снимок перед карточкой с номером slot в нынешнем порядке (slot == Count — в конец).</summary>
     public void MoveBefore(Guid id, int slot)
     {

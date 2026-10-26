@@ -35,7 +35,7 @@ public sealed class SessionServiceTests : IDisposable
         var source = Image(20, 10);
         var b = service.AddCapture(source, new RectI(0, 0, 20, 10), [], "");
         var c = service.AddCapture(Image(10, 10), new RectI(0, 0, 10, 10), [], "");
-        service.SetSent(b, true);
+        service.MarkSent([b]);
 
         var removed = service.Remove(b);
         Assert.NotNull(removed);
@@ -68,8 +68,7 @@ public sealed class SessionServiceTests : IDisposable
         var service = new SessionService(new SessionStore(_dir));
         var ids = Enumerable.Range(0, SessionModel.MaxCaptures)
             .Select(_ => service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "")).ToList();
-        service.SetSent(ids[10], true);
-        service.SetSent(ids[3], true);
+        service.MarkSent([ids[10], ids[3]]);
         var changes = new List<SessionChange>();
         service.Changed += (_, change) => changes.Add(change);
 
@@ -80,54 +79,6 @@ public sealed class SessionServiceTests : IDisposable
         Assert.DoesNotContain(service.Model.Captures, x => x.Id == ids[3]);
         Assert.Contains(service.Model.Captures, x => x.Id == ids[10]);
         Assert.Equal([new SessionChange(SessionChangeKind.Removed, ids[3]), new SessionChange(SessionChangeKind.Added, added)], changes);
-    });
-
-    [Fact]
-    public void ResendLastPaste_SkipsDeleted() => StaRunner.Run(() =>
-    {
-        var service = new SessionService(new SessionStore(_dir));
-        var a = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
-        var b = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
-        var c = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
-        service.RememberPaste([a, b]);
-        service.Remove(b);
-        service.MarkSent([a, c]);
-
-        service.ResendLastPaste();
-        service.FlushAsync().Wait();
-
-        Assert.Equal([(a, false), (c, true)], service.Model.Captures.Select(x => (x.Id, x.IsSent)));
-    });
-
-    [Fact]
-    public void ResendLastPaste_AllDeleted_ChangesNothing() => StaRunner.Run(() =>
-    {
-        // Снимков той вставки в ленте уже нет: нельзя молча отметить отправленной текущую пачку
-        var service = new SessionService(new SessionStore(_dir));
-        var a = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
-        var b = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
-        service.RememberPaste([a]);
-        service.Remove(a);
-
-        Assert.False(service.HasLastPaste);
-        Assert.False(service.ResendLastPaste());
-        Assert.False(service.Model.Captures.Single(x => x.Id == b).IsSent);
-        service.FlushAsync().Wait();
-    });
-
-    [Fact]
-    public void ClearAll_ForgetsLastPaste() => StaRunner.Run(() =>
-    {
-        var service = new SessionService(new SessionStore(_dir));
-        var a = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
-        service.RememberPaste([a]);
-        service.ClearAll();
-        var b = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
-
-        Assert.False(service.HasLastPaste);
-        Assert.False(service.ResendLastPaste());
-        Assert.False(service.Model.Captures.Single(x => x.Id == b).IsSent);
-        service.FlushAsync().Wait();
     });
 
     [Fact]
@@ -143,17 +94,6 @@ public sealed class SessionServiceTests : IDisposable
         service.FlushAsync().Wait();
 
         Assert.Equal(new SessionChange(SessionChangeKind.Restored, a), Assert.Single(changes));
-    });
-
-    [Fact]
-    public void HasLastPaste_FalseUntilRemembered() => StaRunner.Run(() =>
-    {
-        var service = new SessionService(new SessionStore(_dir));
-        Assert.False(service.HasLastPaste);
-        var a = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
-        service.RememberPaste([a]);
-        Assert.True(service.HasLastPaste);
-        service.FlushAsync().Wait();
     });
 
     [Fact]

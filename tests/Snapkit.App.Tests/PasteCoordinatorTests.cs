@@ -85,48 +85,6 @@ public class PasteCoordinatorClipboardTests
     }
 
     [Fact]
-    public void StoppedPaste_IsRememberedAsLastPaste()
-    {
-        // Пачку a, b остановили Esc после первой картинки: «Повторить последнюю вставку» вернёт обе
-        var dir = Path.Combine(Path.GetTempPath(), "snapkit-tests-" + Guid.NewGuid());
-        using var host = new ClipboardTestHost();
-        using var reader = new ForeignClipboard();
-        var image = BitmapSource.Create(4, 4, 96, 96, PixelFormats.Bgra32, null, new byte[4 * 4 * 4], 4 * 4);
-        image.Freeze();
-        PasteOutcome? outcome = null;
-        SessionService? session = null;
-        Guid a = default, b = default, c = default;
-        host.Run(async () =>
-        {
-            session = new SessionService(new SessionStore(dir));
-            a = session.AddCapture(image, new RectI(0, 0, 4, 4), [], "");
-            b = session.AddCapture(image, new RectI(0, 0, 4, 4), [], "");
-            c = session.AddCapture(image, new RectI(0, 0, 4, 4), [], "");
-            var plan = new PastePlan([image, image], "", [a, b], NotesCount: 0, FromStrip: true);
-            var router = new KeyRouter(() => default);
-            var paste = new PasteCoordinator(session, host.Service, router, () => plan, () => false,
-                send: _ =>
-                {
-                    reader.ReadAnonymously(ForeignClipboard.Format("PNG"));
-                    router.EscapePressedDuringPaste = true;
-                });
-            outcome = await paste.PasteBatchAsync();
-            await session.FlushAsync();
-        });
-
-        // Остановка по Esc; если в это время сменилось активное окно (тест идёт на настоящем рабочем
-        // столе), вставка останавливается раньше — для памяти о вставке это одно и то же
-        Assert.Contains(outcome?.Status, new PasteStatus?[] { PasteStatus.StoppedByUser, PasteStatus.StoppedTargetChanged });
-        Assert.True(session!.HasLastPaste);
-        host.Run(() =>
-        {
-            session.ResendLastPaste();
-            return session.FlushAsync();
-        });
-        Assert.Equal([(a, false), (b, false), (c, true)], session.Model.Captures.Select(x => (x.Id, x.IsSent)));
-    }
-
-    [Fact]
     public void TextNotTakenFirstTime_IsPastedAgainOnce()
     {
         // Telegram после картинки открывает окно с подписью: первый Ctrl+V с текстом приходит,

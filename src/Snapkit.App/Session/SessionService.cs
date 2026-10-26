@@ -29,8 +29,6 @@ public sealed class SessionService(SessionStore store)
     private Task _tail = Task.CompletedTask;
     private bool _saveQueued;
     private volatile IReadOnlyList<Capture> _latest = [];
-    // Пачка последней вставки по Ctrl+V — для «Повторить последнюю вставку»; на диск не пишется
-    private IReadOnlyList<Guid> _lastPaste = [];
 
     public SessionModel Model { get; } = new();
 
@@ -113,33 +111,6 @@ public sealed class SessionService(SessionStore store)
         return true;
     }
 
-    /// <summary>Щелчок по значку карточки: снимок в пачке или нет.</summary>
-    public void SetSent(Guid id, bool isSent)
-    {
-        Model.SetSent(id, isSent);
-        Persist();
-        Raise(SessionChangeKind.SentMarked, id);
-    }
-
-    /// <summary>Запомнить пачку, которую вставляют по Ctrl+V (даже если вставку потом остановят).</summary>
-    public void RememberPaste(IReadOnlyList<Guid> ids) => _lastPaste = ids.ToList();
-
-    /// <summary>Есть что повторить: хотя бы один снимок последней вставки ещё в ленте.</summary>
-    public bool HasLastPaste => _lastPaste.Any(id => Model.Captures.Any(c => c.Id == id));
-
-    /// <summary>
-    /// «Повторить последнюю вставку»: та пачка снова неотправленная, остальные — отправленные.
-    /// false — снимков той вставки в ленте уже нет, отметки не меняются.
-    /// </summary>
-    public bool ResendLastPaste()
-    {
-        if (!HasLastPaste) return false;
-        Model.ResendOnly(_lastPaste.ToList());
-        Persist();
-        Raise(SessionChangeKind.SentMarked, null);
-        return true;
-    }
-
     /// <summary>Перетащили карточку: поставить снимок перед карточкой с номером slot.</summary>
     public void MoveBefore(Guid id, int slot)
     {
@@ -191,7 +162,6 @@ public sealed class SessionService(SessionStore store)
         Log.Info($"Лента очищена, снимков было {Model.Captures.Count}");
         Model.Clear();
         _sources.Clear();
-        _lastPaste = [];
         _latest = [];
         Enqueue(store.Clear);
         Raise(SessionChangeKind.Cleared, null);

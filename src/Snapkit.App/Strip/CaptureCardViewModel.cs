@@ -13,9 +13,6 @@ public sealed class CaptureCardViewModel(
     /// <summary>Буква неотправленного снимка (A, B…); у отправленного — null.</summary>
     public string? Letter { get; } = letter;
     public bool IsSent { get; } = isSent;
-
-    /// <summary>Подсказка значка: щелчок по нему убирает снимок из пачки или возвращает в неё.</summary>
-    public string BadgeToolTip => IsSent ? "Отправлен — щёлкните, чтобы вставить ещё раз" : "В пачке — щёлкните, чтобы убрать";
     public int NoteCount { get; } = noteCount;
     public bool HasNotes => NoteCount > 0;
 

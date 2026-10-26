@@ -129,33 +129,6 @@ public class SessionModelTests
         => PackageSelector.Select(model.Captures).Select(p => (p.Letter, p.Capture.Id)).ToList();
 
     [Fact]
-    public void SetSent_RemovesFromPackage()
-    {
-        var (model, a, b, c) = Strip();
-        model.SetSent(b.Id, true);
-        // Буквы не сдвигаются: убрали B — у c по-прежнему C
-        Assert.Equal([('A', a.Id), ('C', c.Id)], Package(model));
-    }
-
-    [Fact]
-    public void SetSent_ToggleBack_ReturnsLetter()
-    {
-        var (model, a, b, c) = Strip();
-        model.SetSent(b.Id, true);
-        model.SetSent(b.Id, false);
-        Assert.Equal([('A', a.Id), ('B', b.Id), ('C', c.Id)], Package(model));
-    }
-
-    [Fact]
-    public void ResendOnly_MarksOthersSent()
-    {
-        var (model, _, _, c) = Strip();
-        model.ResendOnly([c.Id, Guid.NewGuid()]);
-        Assert.Equal([('C', c.Id)], Package(model));
-        Assert.Equal(3, model.Captures.Count);
-    }
-
-    [Fact]
     public void MoveBefore_ChangesPackageOrder()
     {
         var (model, a, b, c) = Strip();

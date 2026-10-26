@@ -119,6 +119,10 @@ public static IReadOnlyList<LetteredCapture> ForExport(IReadOnlyList<Capture> st
 
 ### Задача 2: Сессия — вернуть удалённый, повтор вставки, место для нового
 
+> **Частично отменено 26.10:** повтор вставки (память о последней вставке, `SetSent`,
+> `ResendOnly`) убран вместе с выбором снимков — см. задачу 3. «Вернуть» и место для нового
+> остались.
+
 **Файлы:**
 - Изменить: `src/Snapkit.App/Session/SessionService.cs`, `src/Snapkit.App/Paste/PasteCoordinator.cs`
 - Тесты: `tests/Snapkit.App.Tests/SessionServiceTests.cs`, `tests/Snapkit.App.Tests/PasteCoordinatorTests.cs`
@@ -170,6 +174,10 @@ public void MoveBefore(Guid id, int slot);              // событие Reorde
 ---
 
 ### Задача 3: Карточка и меню — пачка, «Вернуть», повтор
+
+> **Отменено 26.10:** пользователь попросил убрать выбор снимков полностью — переключение
+> значком, «Повторить последнюю вставку» и «Вся лента в пачку» убраны (`refactor(strip)`).
+> «Вернуть» в уведомлении осталось.
 
 **Файлы:**
 - Изменить: `src/Snapkit.App/Strip/CaptureCardViewModel.cs`, `src/Snapkit.App/Strip/StripViewModel.cs`,
