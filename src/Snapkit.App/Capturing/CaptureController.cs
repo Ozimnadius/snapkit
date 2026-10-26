@@ -41,6 +41,12 @@ public sealed partial class CaptureController(SessionService session, Action hid
     /// <summary>Новый снимок встал на ленту (не повторное открытие).</summary>
     public event EventHandler<Guid>? CaptureAdded;
 
+    /// <summary>
+    /// В редакторе нажали «Готово» — для нового снимка и для снимка с ленты, даже без правок:
+    /// снимок копируется в буфер.
+    /// </summary>
+    public event EventHandler<Guid>? CaptureDone;
+
     /// <summary>Снимок не начат: в ленте нет места — все снимки неотправленные.</summary>
     public event EventHandler? StripFull;
 
@@ -165,6 +171,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
             {
                 session.UpdateCapture(capture with { Annotations = result.Annotations, SnapshotNote = result.SnapshotNote });
             }
+            CaptureDone?.Invoke(this, captureId);
         };
         editor.Cancelled += (_, _) =>
         {
@@ -277,6 +284,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
         Close();
         var id = session.AddCapture(crop, screenBounds, result.Annotations, result.SnapshotNote);
         CaptureAdded?.Invoke(this, id);
+        CaptureDone?.Invoke(this, id);
     }
 
     // Отмена из окна (Esc до выделения, Alt+F4): если открыт редактор — как Esc в нём, с вопросом о правках

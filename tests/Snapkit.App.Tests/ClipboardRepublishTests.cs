@@ -9,9 +9,9 @@ public class ClipboardRepublishTests
     [Theory]
     [InlineData(SessionChangeKind.Added)]
     [InlineData(SessionChangeKind.Updated)]
-    public void Done_CopiesOnlyThatCapture(SessionChangeKind kind)
-        // «Готово» в редакторе — как «Копировать»: следующий Ctrl+V вставит только этот снимок
-        => Assert.Equal(ClipboardAction.Capture,
+    public void NewOrEditedCapture_LeavesClipboardToDoneButton(SessionChangeKind kind)
+        // Снимок копирует сама кнопка «Готово» (в том числе без правок) — изменение ленты буфер не трогает
+        => Assert.Equal(ClipboardAction.None,
             ClipboardRepublish.After(kind, hasCaptureId: true, hasUnsent: true, stripPackageInClipboard: true));
 
     [Theory]
@@ -42,9 +42,4 @@ public class ClipboardRepublishTests
         => Assert.Equal(ClipboardAction.None,
             ClipboardRepublish.After(SessionChangeKind.Reordered, hasCaptureId: true, hasUnsent: false, stripPackageInClipboard: true));
 
-    [Fact]
-    public void DoneOnSentCapture_StillCopiesIt()
-        // Открыли отправленный снимок с ленты и нажали «Готово» без правок — он всё равно копируется
-        => Assert.Equal(ClipboardAction.Capture,
-            ClipboardRepublish.After(SessionChangeKind.Updated, hasCaptureId: true, hasUnsent: false, stripPackageInClipboard: false));
 }

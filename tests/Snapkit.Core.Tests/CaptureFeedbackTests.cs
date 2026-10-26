@@ -5,7 +5,7 @@ namespace Snapkit.Core.Tests;
 public class CaptureFeedbackTests
 {
     [Fact]
-    public void Ready_UsesLetter() => Assert.Equal("Снимок B готов — Ctrl+V вставит", CaptureFeedback.Ready('B'));
+    public void Copied_SaysWhatCtrlVDoes() => Assert.Equal("Снимок скопирован — Ctrl+V вставит", CaptureFeedback.Copied);
 
     [Fact]
     public void StripFull_NamesLimit()

@@ -135,7 +135,13 @@ public partial class App : Application
             CustomColors = () => _settings.CustomColors,
             SaveCustomColors = colors => SaveSettings(_settings with { CustomColors = colors }),
         };
-        _capture.CaptureAdded += (_, id) => OnCaptureAdded(id);
+        _capture.CaptureAdded += (_, _) => ApplyStripView(StripPresence.AfterNewCapture(_view, _settings.ShowStrip));
+        // «Готово» — как «Копировать снимок»: в буфере только этот снимок, о чём и сообщаем
+        _capture.CaptureDone += (_, id) =>
+        {
+            RunClipboard(() => _publisher.PublishCaptureAsync(id));
+            Toasts.Show(CaptureFeedback.Copied);
+        };
         _capture.StripFull += (_, _) =>
         {
             Toasts.Show(CaptureFeedback.StripFull);
@@ -300,18 +306,6 @@ public partial class App : Application
     }
 
     private void StartNewCapture() => _capture.StartNewCapture();
-
-    /// <summary>
-    /// Новый снимок: лента включена — закрытая лента появляется, капсула остаётся капсулой;
-    /// выключена — короткое уведомление, что снимок в пачке.
-    /// </summary>
-    private void OnCaptureAdded(Guid id)
-    {
-        ApplyStripView(StripPresence.AfterNewCapture(_view, _settings.ShowStrip));
-        if (_settings.ShowStrip) return;
-        if (CaptureLetters.Assign(_session.Model.Captures).TryGetValue(id, out var letter))
-            Toasts.Show(CaptureFeedback.Ready(letter));
-    }
 
     /// <summary>
     /// Единственное место, которое показывает и прячет ленту и капсулу. Свёрнута лента или нет,
@@ -488,8 +482,7 @@ public partial class App : Application
     {
         var action = ClipboardRepublish.After(change.Kind, change.CaptureId is not null, _session.Model.UnsentCount > 0,
             stripPackageInClipboard: IsPackageCurrent() && _publisher.IsStripPackage);
-        if (action == ClipboardAction.Capture && change.CaptureId is { } id) RunClipboard(() => _publisher.PublishCaptureAsync(id));
-        else if (action == ClipboardAction.Package) RunClipboard(_publisher.PublishPackageAsync);
+        if (action == ClipboardAction.Package) RunClipboard(_publisher.PublishPackageAsync);
     }
 
     /// <summary>Пачку поменяли с ленты — пакет снова в буфер, и следующий Ctrl+V в любом окне вставит её.</summary>
@@ -712,7 +705,9 @@ public partial class App : Application
         var monitor = Forms.Screen.PrimaryScreen!.Bounds;
         var bounds = new RectI(monitor.X + (monitor.Width - image.PixelWidth) / 2, monitor.Y + (monitor.Height - image.PixelHeight) / 2,
             image.PixelWidth, image.PixelHeight);
-        _session.AddCapture(image, bounds, [], "");
+        var id = _session.AddCapture(image, bounds, [], "");
+        // Картинку извне сразу можно вставить: в буфере она одна, как после «Готово»
+        RunClipboard(() => _publisher.PublishCaptureAsync(id));
     }
 
     private static BitmapSource? ReadClipboardImage()
