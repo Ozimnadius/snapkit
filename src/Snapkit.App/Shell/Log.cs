@@ -10,12 +10,16 @@ public static class Log
     public static string FilePath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Snapkit", "log.txt");
 
+    /// <summary>Тесты выключают журнал, чтобы не засорять настоящий журнал программы.</summary>
+    public static bool Enabled { get; set; } = true;
+
     public static void Error(string context, Exception ex) => Write($"ОШИБКА {context}: {ex}");
 
     public static void Info(string message) => Write(message);
 
     private static void Write(string line)
     {
+        if (!Enabled) return;
         try
         {
             lock (Gate)

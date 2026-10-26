@@ -83,6 +83,23 @@ public sealed class ClipboardServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task AnonymousRead_ConfirmsOnlyAfterPasteKeysWereSent()
+    {
+        // Chrome открывает буфер без своего окна — процесс читателя не узнать.
+        // Такое чтение засчитывается, только если оно пришло после программного Ctrl+V.
+        var beforeKeys = _host.Service.ExpectRender(targetPid: 1, TimeSpan.FromMilliseconds(300));
+        Publish(new ClipboardPayload(Png, null, null));
+        _foreign.ReadAnonymously(ForeignClipboard.Format("PNG"));
+        Assert.False(await beforeKeys);
+
+        var afterKeys = _host.Service.ExpectRender(targetPid: 1, TimeSpan.FromSeconds(2));
+        Publish(new ClipboardPayload(Png, null, null));
+        _host.Service.PasteKeysSent();
+        _foreign.ReadAnonymously(ForeignClipboard.Format("PNG"));
+        Assert.True(await afterKeys);
+    }
+
+    [Fact]
     public void OtherOwnerWrites_PackageNotCurrent()
     {
         Publish(new ClipboardPayload(Png, null, "пакет"));

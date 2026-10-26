@@ -77,6 +77,16 @@ internal sealed partial class ForeignClipboard : IDisposable
 
     public bool HasFormat(string name) => IsClipboardFormatAvailable(Format(name));
 
+    /// <summary>Прочитать формат, открыв буфер без своего окна — так делает Chrome.</summary>
+    public void ReadAnonymously(uint format)
+    {
+        var opened = false;
+        for (var i = 0; i < 20 && !(opened = OpenClipboard(0)); i++) Thread.Sleep(25);
+        if (!opened) throw new InvalidOperationException("Буфер обмена занят");
+        try { GetClipboardData(format); }
+        finally { CloseClipboard(); }
+    }
+
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool IsClipboardFormatAvailable(uint format);

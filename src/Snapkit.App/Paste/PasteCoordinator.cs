@@ -80,6 +80,7 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
                 await clipboard.PublishAsync(step, ClipboardKind.PasteStep, excludeFromHistory: true);
                 router.Resync();
                 _send(PasteKeys.CtrlV(router.Logical));
+                clipboard.PasteKeysSent();
                 var confirmed = await taken;
                 verified &= confirmed;
                 if (step.Png is not null) images++;

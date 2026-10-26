@@ -35,6 +35,7 @@ public sealed partial class ClipboardService : IDisposable
     // Читается с потока хука клавиатуры
     private volatile int _kind;
     private (int Pid, TaskCompletionSource<bool> Done)? _expected;
+    private volatile bool _pasteKeysSent;
 
     public ClipboardService()
     {
@@ -102,6 +103,7 @@ public sealed partial class ClipboardService : IDisposable
     {
         var done = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (_expectGate) _expected = (targetPid, done);
+        _pasteKeysSent = false;
         _ = Task.Delay(timeout).ContinueWith(_ =>
         {
             lock (_expectGate)
@@ -112,6 +114,12 @@ public sealed partial class ClipboardService : IDisposable
         }, TaskScheduler.Default);
         return done.Task;
     }
+
+    /// <summary>
+    /// Программный Ctrl+V для текущего шага отправлен. После этого чтение буфера без окна
+    /// (так читает Chrome) считается чтением получателя.
+    /// </summary>
+    public void PasteKeysSent() => _pasteKeysSent = true;
 
     public void Dispose()
     {
@@ -167,7 +175,10 @@ public sealed partial class ClipboardService : IDisposable
         var opener = GetOpenClipboardWindow();
         var pid = 0u;
         if (opener != 0) GetWindowThreadProcessId(opener, out pid);
-        if (!ProcessTree.IsSameOrDescendant((int)pid, expectedPid))
+        // Буфер открыт без окна (так читает Chrome): читателя не узнать, но если Ctrl+V уже отправлен —
+        // это получатель; менеджеры буфера читают сразу после изменения, ещё до нажатия
+        var anonymousAfterKeys = opener == 0 && _pasteKeysSent;
+        if (!anonymousAfterKeys && !ProcessTree.IsSameOrDescendant((int)pid, expectedPid))
         {
             // Для разбора на месте: кто на самом деле прочитал буфер во время вставки
             Log.Info($"Буфер во время вставки прочитал не получатель: {ProcessTree.NameOf((int)pid)} ({pid}), " +
