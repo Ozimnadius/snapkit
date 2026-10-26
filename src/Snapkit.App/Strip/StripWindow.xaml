@@ -7,6 +7,7 @@
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
         Topmost="{Binding IsTopmost}"
+        AllowDrop="True" DragOver="Window_DragOver" Drop="Window_Drop"
         FontFamily="Segoe UI" FontSize="13"
         Foreground="{StaticResource TextBrush}"
         UseLayoutRounding="True">
@@ -53,7 +54,7 @@
             <!-- Карточки стопкой: каждая следующая наезжает на предыдущую, новая — снизу и видна целиком -->
             <ScrollViewer Margin="0,6,0,0" MaxHeight="460" VerticalScrollBarVisibility="Auto"
                           Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
-                <ItemsControl ItemsSource="{Binding Cards}">
+                <ItemsControl x:Name="CardsList" ItemsSource="{Binding Cards}">
                     <ItemsControl.ItemContainerStyle>
                         <Style TargetType="ContentPresenter">
                             <Setter Property="Margin" Value="{Binding TopMargin}" />
@@ -70,6 +71,7 @@
                             <Border x:Name="Card" Height="124" CornerRadius="8" BorderThickness="1"
                                     BorderBrush="{StaticResource PanelBorderBrush}" Background="{StaticResource PanelRaisedBrush}"
                                     Cursor="Hand" Tag="{Binding Id}" MouseLeftButtonUp="Card_MouseLeftButtonUp"
+                                    PreviewMouseLeftButtonDown="Card_PreviewMouseLeftButtonDown" PreviewMouseMove="Card_PreviewMouseMove"
                                     ToolTip="Открыть снимок">
                                 <Grid>
                                     <Border CornerRadius="7">

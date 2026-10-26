@@ -6,6 +6,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Snapkit.App.Capturing;
 using Snapkit.App.Clipboarding;
+using Snapkit.App.Files;
 using Snapkit.App.Imaging;
 using Snapkit.App.Input;
 using Snapkit.App.Interop;
@@ -93,6 +94,9 @@ public partial class App : Application
         ApplyAutoStart();
 
         _session = new SessionService(new SessionStore(Path.Combine(DataDirectory, "session")));
+        // Файлы прошлых перетаскиваний больше не нужны
+        try { CaptureFiles.CleanDragRoot(DragDirectory); }
+        catch (Exception ex) { Log.Error("очистка файлов перетаскивания", ex); }
         _session.SaveFailed += (_, ex) =>
         {
             Log.Error("запись ленты на диск", ex);
@@ -233,6 +237,8 @@ public partial class App : Application
         _strip.CopyPackageRequested += (_, _) => RunClipboard(_publisher.CopyPackageCommandAsync);
         _strip.CopyCaptureRequested += (_, id) => RunClipboard(() => _publisher.CopyCaptureAsync(id));
         _strip.ExitRequested += (_, _) => ExitApp();
+        _strip.ReorderRequested += (_, drop) => _session.MoveBefore(drop.Id, drop.Slot);
+        _strip.DragFileFor = DragFileFor;
         _strip.TopmostToggled += (_, topmost) =>
         {
             _stripModel.IsTopmost = topmost;
@@ -255,6 +261,26 @@ public partial class App : Application
     }
 
     private void StartNewCapture() => _capture.StartNewCapture();
+
+    private static readonly string DragDirectory = Path.Combine(DataDirectory, "drag");
+
+    /// <summary>Снимок с разметкой файлом для перетаскивания в другое окно; null — не получилось.</summary>
+    private string? DragFileFor(Guid id)
+    {
+        try
+        {
+            var captures = _session.Model.Captures;
+            if (captures.FirstOrDefault(c => c.Id == id) is not { } capture) return null;
+            char? letter = CaptureLetters.Assign(captures).TryGetValue(id, out var l) ? l : null;
+            var rendered = CaptureRenderer.Render(_session.GetSource(id), capture, letter ?? 'A');
+            return CaptureFiles.WriteDragFile(DragDirectory, rendered, letter);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("файл для перетаскивания", ex);
+            return null;
+        }
+    }
 
     /// <summary>Глобальные клавиши: Print Screen — снимок, Ctrl+V — вставка пачки.</summary>
     private void StartKeyboardHook()
@@ -295,7 +321,8 @@ public partial class App : Application
         var republish = change.Kind switch
         {
             SessionChangeKind.Added or SessionChangeKind.Updated => change.CaptureId is not null,
-            SessionChangeKind.Removed => IsPackageCurrent(),
+            // Удаление и новый порядок меняют буквы — пакет в буфере обновляется, если он наш
+            SessionChangeKind.Removed or SessionChangeKind.Reordered => IsPackageCurrent(),
             _ => false,
         };
         if (republish && _session.Model.UnsentCount > 0) RunClipboard(_publisher.PublishPackageAsync);

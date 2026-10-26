@@ -3,7 +3,9 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using Snapkit.App.Shell;
+using Snapkit.Core;
 
 namespace Snapkit.App.Strip;
 
@@ -27,6 +29,18 @@ public partial class StripWindow : Window
 
     public StripViewModel ViewModel { get; }
 
+    /// <summary>Свой формат перетаскивания: по нему лента узнаёт свою карточку и меняет порядок.</summary>
+    public const string CaptureIdFormat = "Snapkit.CaptureId";
+
+    /// <summary>Файл снимка для перетаскивания в другие окна (рисует и пишет App); null — без файла.</summary>
+    public Func<Guid, string?>? DragFileFor { get; set; }
+
+    // Где нажали на карточку — перетаскивание начинается, когда мышь отошла дальше системного порога
+    private Point? _pressPoint;
+    private Guid _pressId;
+    // Карточку перетащили — отпускание кнопки не открывает редактор
+    private bool _suppressOpen;
+
     public event EventHandler? NewCaptureRequested;
     public event EventHandler<Guid>? OpenCaptureRequested;
     public event EventHandler<Guid>? DeleteCaptureRequested;
@@ -41,6 +55,7 @@ public partial class StripWindow : Window
     public event EventHandler? ResendLastRequested;
     public event EventHandler? ResendAllRequested;
     public event EventHandler? Moved;
+    public event EventHandler<(Guid Id, int Slot)>? ReorderRequested;
 
     private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -59,7 +74,67 @@ public partial class StripWindow : Window
 
     private void Card_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        _pressPoint = null;
+        if (_suppressOpen)
+        {
+            _suppressOpen = false;
+            return;
+        }
         if (sender is FrameworkElement { Tag: Guid id }) OpenCaptureRequested?.Invoke(this, id);
+    }
+
+    private void Card_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _suppressOpen = false;
+        _pressPoint = null;
+        // Нажатие на кнопке карточки (значок, «Копировать», «Удалить») — не перетаскивание
+        if (IsInsideButton(e.OriginalSource as DependencyObject)) return;
+        if (sender is not FrameworkElement { Tag: Guid id }) return;
+        _pressPoint = e.GetPosition(this);
+        _pressId = id;
+    }
+
+    private void Card_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_pressPoint is not { } start || e.LeftButton != MouseButtonState.Pressed) return;
+        var now = e.GetPosition(this);
+        if (!StripLayout.IsDragStarted(now.X - start.X, now.Y - start.Y,
+                SystemParameters.MinimumHorizontalDragDistance, SystemParameters.MinimumVerticalDragDistance))
+            return;
+        _pressPoint = null;
+        _suppressOpen = true;
+        // Внутри ленты бросили — новый порядок (свой формат), в другое окно — файл снимка
+        var data = new DataObject();
+        data.SetData(CaptureIdFormat, _pressId.ToString());
+        if (DragFileFor?.Invoke(_pressId) is { } path) data.SetData(DataFormats.FileDrop, new[] { path });
+        DragDrop.DoDragDrop((DependencyObject)sender, data, DragDropEffects.Copy | DragDropEffects.Move);
+    }
+
+    private void Window_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(CaptureIdFormat) ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void Window_Drop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData(CaptureIdFormat) is string text && Guid.TryParse(text, out var id))
+        {
+            // Координата — от верха списка карточек, прокрутка уже учтена
+            var slot = StripLayout.DropSlot(e.GetPosition(CardsList).Y, ViewModel.Cards.Count,
+                StripViewModel.CardHeight, StripViewModel.StripeHeight);
+            ReorderRequested?.Invoke(this, (id, slot));
+        }
+        e.Handled = true;
+    }
+
+    private static bool IsInsideButton(DependencyObject? element)
+    {
+        for (var e = element; e is not null; e = e is Visual or Visual3D ? VisualTreeHelper.GetParent(e) : LogicalTreeHelper.GetParent(e))
+        {
+            if (e is ButtonBase) return true;
+        }
+        return false;
     }
 
     private void Badge_Click(object sender, RoutedEventArgs e)
