@@ -192,6 +192,30 @@ public static class AnnotationGeometry
         return dx == 0 && dy == 0 ? items : items.Select(a => Translate(a, dx, dy)).ToImmutableList();
     }
 
+    /// <summary>
+    /// Кружки заметок, которые выходят за край снимка width × height, сдвигаются внутрь целиком.
+    /// Сами фигуры не меняются; если снимок меньше кружка — кружок встаёт в середину.
+    /// </summary>
+    public static ImmutableList<Annotation> KeepPinsInside(ImmutableList<Annotation> items, int width, int height)
+    {
+        return items.Select(a =>
+        {
+            if (!a.HasNote) return a;
+            var center = PinCenter(a);
+            var inside = new PointD(Fit(center.X, width), Fit(center.Y, height));
+            return inside == center ? a : AnnotationHandles.WithPinAt(a, inside);
+        }).ToImmutableList();
+
+        static double Fit(double v, int size) => size < PinDiameter ? size / 2.0 : Math.Clamp(v, PinRadius, size - PinRadius);
+    }
+
+    /// <summary>
+    /// Разметка обрезанного снимка: фигуры сдвигаются в координаты области crop, кружки остаются внутри.
+    /// Фигуры не удаляются — то, что за краем, обрежет сама картинка.
+    /// </summary>
+    public static ImmutableList<Annotation> Crop(ImmutableList<Annotation> items, RectI crop)
+        => KeepPinsInside(items.Select(a => Translate(a, -crop.X, -crop.Y)).ToImmutableList(), crop.Width, crop.Height);
+
     /// <summary>Сдвинуть фигуру; кружок заметки едет вместе с ней (PinOffset не меняется).</summary>
     public static Annotation Translate(Annotation a, double dx, double dy)
         => a with { Points = [.. a.Points.Select(pt => new PointD(pt.X + dx, pt.Y + dy))] };
