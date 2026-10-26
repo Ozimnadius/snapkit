@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:Snapkit.App.Shell"
         Title="Snapkit — Лента снимков"
-        Width="240" SizeToContent="Height"
+        Width="210" SizeToContent="Height"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
         Topmost="{Binding IsTopmost}"
@@ -30,17 +30,18 @@
                 </Grid.ColumnDefinitions>
                 <Image x:Name="LogoImage" Width="18" Height="18" VerticalAlignment="Center"
                        RenderOptions.BitmapScalingMode="HighQuality" />
-                <TextBlock Grid.Column="1" Text="Snapkit" Margin="8,0,6,0" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="Snapkit" Margin="6,0,5,0" FontWeight="SemiBold" VerticalAlignment="Center" />
                 <Border Grid.Column="2" Background="#33FFFFFF" CornerRadius="9" MinWidth="20" Height="18"
                         Padding="6,0" VerticalAlignment="Center" ToolTip="Неотправленных снимков">
                     <TextBlock Text="{Binding UnsentCount}" FontSize="11" FontWeight="SemiBold"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
+                <!-- Кнопки узкие: лента компактная, как у Snapik -->
                 <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Style="{StaticResource IconButton}" Content="&#xE74D;" ToolTip="Очистить ленту" Click="Clear_Click" />
-                    <Button x:Name="MoreButton" Style="{StaticResource IconButton}" Content="&#xE712;" ToolTip="Ещё" Click="More_Click" />
-                    <Button Style="{StaticResource IconButton}" Content="&#xE921;" ToolTip="Свернуть" Click="Minimize_Click" />
-                    <Button Style="{StaticResource IconButton}" Content="&#xE8BB;" ToolTip="Закрыть" Click="Close_Click" />
+                    <Button Style="{StaticResource IconButton}" Width="22" Content="&#xE74D;" ToolTip="Очистить ленту" Click="Clear_Click" />
+                    <Button x:Name="MoreButton" Style="{StaticResource IconButton}" Width="22" Content="&#xE712;" ToolTip="Ещё" Click="More_Click" />
+                    <Button Style="{StaticResource IconButton}" Width="22" Content="&#xE921;" ToolTip="Свернуть" Click="Minimize_Click" />
+                    <Button Style="{StaticResource IconButton}" Width="22" Content="&#xE8BB;" ToolTip="Закрыть" Click="Close_Click" />
                 </StackPanel>
             </Grid>
 
@@ -51,15 +52,17 @@
                            VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
             </Border>
 
-            <!-- Карточки стопкой: каждая следующая наезжает на предыдущую, новая — снизу и видна целиком -->
-            <ScrollViewer Margin="0,6,0,0" MaxHeight="460" VerticalScrollBarVisibility="Auto"
-                          Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+            <!-- Карточки стопкой, как у Snapik: по полоске каждой карточки виден сам снимок; новая — снизу и видна целиком -->
+            <Border Margin="0,6,0,0" Padding="5" CornerRadius="10" Background="{StaticResource PanelRaisedBrush}"
+                    BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
+                    Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+            <ScrollViewer MaxHeight="460" VerticalScrollBarVisibility="Auto">
                 <ItemsControl x:Name="CardsList" ItemsSource="{Binding Cards}">
                     <ItemsControl.ItemContainerStyle>
                         <Style TargetType="ContentPresenter">
                             <Setter Property="Margin" Value="{Binding TopMargin}" />
                             <Style.Triggers>
-                                <!-- Наведение поднимает карточку над стопкой — она видна целиком -->
+                                <!-- Наведение раскрывает карточку: она поднимается над стопкой и видна целиком -->
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter Property="Panel.ZIndex" Value="100" />
                                 </Trigger>
@@ -68,83 +71,89 @@
                     </ItemsControl.ItemContainerStyle>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border x:Name="Card" Height="124" CornerRadius="8" BorderThickness="1"
-                                    BorderBrush="{StaticResource PanelBorderBrush}" Background="{StaticResource PanelRaisedBrush}"
+                            <Border x:Name="Card" Height="96" CornerRadius="7" BorderThickness="1"
+                                    BorderBrush="#26FFFFFF" Background="{StaticResource PanelBrush}"
                                     Cursor="Hand" Tag="{Binding Id}" MouseLeftButtonUp="Card_MouseLeftButtonUp"
                                     PreviewMouseLeftButtonDown="Card_PreviewMouseLeftButtonDown" PreviewMouseMove="Card_PreviewMouseMove"
                                     ToolTip="Открыть снимок">
                                 <Grid>
-                                    <Border CornerRadius="7">
+                                    <!-- Сам снимок во всю карточку, сверху: по видимой полоске его и узнают -->
+                                    <Border CornerRadius="6">
                                         <Border.Background>
                                             <ImageBrush ImageSource="{Binding Thumbnail}" Stretch="UniformToFill" AlignmentY="Top" />
                                         </Border.Background>
                                     </Border>
-                                    <!-- Тёмная полоса сверху, чтобы значки читались на любом снимке -->
-                                    <Border Height="36" VerticalAlignment="Top" CornerRadius="7,7,0,0">
-                                        <Border.Background>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                                <GradientStop Color="#F21E2128" Offset="0" />
-                                                <GradientStop Color="#801E2128" Offset="0.7" />
-                                                <GradientStop Color="#001E2128" Offset="1" />
-                                            </LinearGradientBrush>
-                                        </Border.Background>
-                                    </Border>
-                                    <StackPanel Orientation="Horizontal" Margin="8,6,0,0" VerticalAlignment="Top">
-                                        <!-- Значок — кнопка: щелчок убирает снимок из пачки или возвращает в неё, редактор не открывается -->
-                                        <Button Tag="{Binding Id}" Click="Badge_Click" ToolTip="{Binding BadgeToolTip}"
-                                                Cursor="Hand" Focusable="False">
-                                            <Button.Template>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Grid>
-                                                        <ContentPresenter />
-                                                        <Ellipse x:Name="Ring" Stroke="White" StrokeThickness="1.5" Visibility="Hidden" />
-                                                    </Grid>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Button.Template>
-                                        <Grid Width="22" Height="22">
-                                            <Ellipse Fill="{StaticResource AccentBrush}"
-                                                     Visibility="{Binding Letter, Converter={StaticResource NotNullToVisibility}}" />
-                                            <TextBlock Text="{Binding Letter}" Foreground="White" FontWeight="Bold" FontSize="12"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            <Ellipse Fill="#40FFFFFF"
-                                                     Visibility="{Binding IsSent, Converter={StaticResource BoolToVisibility}}" />
-                                            <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="White"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                       Visibility="{Binding IsSent, Converter={StaticResource BoolToVisibility}}" />
-                                        </Grid>
-                                        </Button>
-                                        <StackPanel Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Center"
-                                                    Visibility="{Binding HasNotes, Converter={StaticResource BoolToVisibility}}">
-                                            <TextBlock Text="&#xE90A;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" />
-                                            <TextBlock Text="{Binding NoteCount}" Margin="5,0,0,0" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <!-- Буква и заметки — на маленькой полупрозрачной подложке, читаются на любом снимке -->
+                                    <Border Margin="3,2,0,0" Height="22" Padding="1,1,7,1" CornerRadius="11" Background="#B31E2128"
+                                            HorizontalAlignment="Left" VerticalAlignment="Top">
+                                        <StackPanel Orientation="Horizontal">
+                                            <!-- Значок — кнопка: щелчок убирает снимок из пачки или возвращает в неё, редактор не открывается -->
+                                            <Button Tag="{Binding Id}" Click="Badge_Click" ToolTip="{Binding BadgeToolTip}"
+                                                    Cursor="Hand" Focusable="False">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Grid>
+                                                            <ContentPresenter />
+                                                            <Ellipse x:Name="Ring" Stroke="White" StrokeThickness="1.5" Visibility="Hidden" />
+                                                        </Grid>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                                <Grid Width="20" Height="20">
+                                                    <Ellipse Fill="{StaticResource AccentBrush}"
+                                                             Visibility="{Binding Letter, Converter={StaticResource NotNullToVisibility}}" />
+                                                    <TextBlock Text="{Binding Letter}" Foreground="White" FontWeight="Bold" FontSize="11"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    <Ellipse Fill="#40FFFFFF"
+                                                             Visibility="{Binding IsSent, Converter={StaticResource BoolToVisibility}}" />
+                                                    <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="White"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               Visibility="{Binding IsSent, Converter={StaticResource BoolToVisibility}}" />
+                                                </Grid>
+                                            </Button>
+                                            <!-- Число заметок — всегда, и 0 тоже, как у Snapik -->
+                                            <StackPanel Orientation="Horizontal" Margin="7,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE90A;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                           Foreground="White" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding NoteCount}" Margin="4,0,0,0" FontSize="12" FontWeight="SemiBold"
+                                                           Foreground="White" VerticalAlignment="Center" />
+                                            </StackPanel>
                                         </StackPanel>
-                                    </StackPanel>
-                                    <StackPanel x:Name="CardButtons" Orientation="Horizontal" HorizontalAlignment="Right"
-                                                VerticalAlignment="Top" Margin="0,3,3,0" Visibility="Hidden">
-                                        <Button Style="{StaticResource IconButton}" Content="&#xE8C8;" Foreground="White"
-                                                ToolTip="Копировать снимок" Tag="{Binding Id}" Click="Copy_Click" />
-                                        <Button Style="{StaticResource IconButton}" Content="&#xE74E;" Foreground="White"
-                                                ToolTip="Сохранить снимок…" Tag="{Binding Id}" Click="Save_Click" />
-                                        <Button Style="{StaticResource IconButton}" Content="&#xE8BB;" Foreground="White"
-                                                ToolTip="Удалить снимок" Tag="{Binding Id}" Click="Delete_Click" />
-                                    </StackPanel>
+                                    </Border>
+                                    <!-- Кнопки карточки — при наведении, на такой же подложке справа -->
+                                    <Border x:Name="CardButtons" Margin="0,2,3,0" Height="22" CornerRadius="11" Background="#B31E2128"
+                                            HorizontalAlignment="Right" VerticalAlignment="Top" Visibility="Hidden">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Style="{StaticResource IconButton}" Width="24" Height="22" FontSize="12" Content="&#xE74E;" Foreground="White"
+                                                    ToolTip="Сохранить снимок…" Tag="{Binding Id}" Click="Save_Click" />
+                                            <Button Style="{StaticResource IconButton}" Width="24" Height="22" FontSize="12" Content="&#xE8C8;" Foreground="White"
+                                                    ToolTip="Копировать снимок" Tag="{Binding Id}" Click="Copy_Click" />
+                                            <Button Style="{StaticResource IconButton}" Width="24" Height="22" FontSize="12" Content="&#xE8BB;" Foreground="White"
+                                                    ToolTip="Удалить снимок" Tag="{Binding Id}" Click="Delete_Click" />
+                                        </StackPanel>
+                                    </Border>
                                 </Grid>
                             </Border>
                             <DataTemplate.Triggers>
                                 <Trigger SourceName="Card" Property="IsMouseOver" Value="True">
                                     <Setter TargetName="CardButtons" Property="Visibility" Value="Visible" />
                                     <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                    <Setter TargetName="Card" Property="Effect">
+                                        <Setter.Value>
+                                            <DropShadowEffect BlurRadius="14" ShadowDepth="3" Direction="270" Opacity="0.6" Color="Black" />
+                                        </Setter.Value>
+                                    </Setter>
                                 </Trigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
+            </Border>
 
             <TextBlock Margin="2,8,2,0" TextWrapping="Wrap" FontSize="12" Foreground="#FBBF5A"
                        Text="{Binding SoftWarningText}"

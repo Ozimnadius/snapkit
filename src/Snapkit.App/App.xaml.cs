@@ -27,9 +27,10 @@ namespace Snapkit.App;
 /// <summary>Точка сборки программы: настройки, сессия, лента, трей и их связи.</summary>
 public partial class App : Application
 {
-    private const double StripWidth = 240;
+    private const double StripWidth = 210;
     private const double StripEdgeMargin = 16;
-    private const double ThumbnailWidth = 218;
+    // Ширина карточки: окно 210 − рамка и поля ленты 22 − рамка и поля подложки стопки 12
+    private const double ThumbnailWidth = 176;
 
     private static readonly string DataDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Snapkit");

@@ -11,9 +11,9 @@ namespace Snapkit.App.Strip;
 /// <summary>Состояние ленты: карточки, счётчик неотправленных, подсказки.</summary>
 public sealed class StripViewModel : ObservableObject
 {
-    /// <summary>Полная высота карточки и видимая полоса у карточек под стопкой.</summary>
-    public const double CardHeight = 124;
-    public const double StripeHeight = 34;
+    /// <summary>Полная высота карточки и видимая полоса у карточек под стопкой (компактно, как у Snapik).</summary>
+    public const double CardHeight = 96;
+    public const double StripeHeight = 26;
 
     // Миниатюра перерисовывается, только если изменился снимок или его буква.
     private Dictionary<Guid, (Capture Capture, char? Letter, BitmapSource Thumb)> _thumbs = [];
