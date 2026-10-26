@@ -67,7 +67,8 @@ public sealed class SessionService(SessionStore store)
     {
         var frozen = source.IsFrozen ? source : ImageCodecs.Normalize(source);
         _sources[updated.Id] = frozen;
-        Model.Update(updated);
+        // Картинка другая — снимок снова нужно отправить, даже если разметка та же
+        Model.Update(updated with { IsSent = false });
         Enqueue(() => store.WriteSourceImage(updated.Id, ImageCodecs.EncodePng(frozen)));
         Persist();
         Raise(SessionChangeKind.Updated, updated.Id);

@@ -66,6 +66,20 @@ public sealed class SessionServiceTests : IDisposable
     });
 
     [Fact]
+    public void UpdateCaptureImage_SentCapture_BecomesUnsent() => StaRunner.Run(() =>
+    {
+        // Отправленный снимок обрезали, разметку не трогали: в чат должна уйти новая картинка
+        var service = new SessionService(new SessionStore(_dir));
+        var id = service.AddCapture(Image(100, 80), new RectI(10, 20, 100, 80), [], "");
+        service.MarkSent([id]);
+
+        service.UpdateCaptureImage(service.Model.Captures.Single() with { PixelWidth = 40, PixelHeight = 30 }, Image(40, 30));
+        service.FlushAsync().Wait();
+
+        Assert.False(service.Model.Captures.Single().IsSent);
+    });
+
+    [Fact]
     public void UpdateCaptureImage_RaisesUpdated() => StaRunner.Run(() =>
     {
         var service = new SessionService(new SessionStore(_dir));
