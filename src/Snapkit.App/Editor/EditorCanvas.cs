@@ -60,20 +60,8 @@ internal sealed class EditorCanvas : FrameworkElement
             dc.DrawImage(Source, new Rect(SourceOrigin.X, SourceOrigin.Y, Source.PixelWidth, Source.PixelHeight));
 
         var items = Preview is null ? Items : Items.Append(Preview).ToList();
-        AnnotationPainter.DrawAll(dc, items, Letter, Source is null ? null : new BlurSource(Source, SourceOrigin));
-        if (PendingPinId is { } pendingId && Items.FirstOrDefault(a => a.Id == pendingId) is { HasNote: false } pending)
-        {
-            var next = Items.Count(a => a.HasNote) + 1;
-            AnnotationPainter.DrawPin(dc, AnnotationGeometry.PinCenter(pending), $"{Letter}{next}");
-        }
-
-        // Будущая обрезка: вне рамки затемнено, рамка пунктиром
-        if (CropPreview is { } crop)
-        {
-            var outer = new RectangleGeometry(new Rect(Offset.X, Offset.Y, PixelWidth, PixelHeight));
-            dc.DrawGeometry(CropShade, null, new CombinedGeometry(GeometryCombineMode.Exclude, outer, new RectangleGeometry(crop)));
-            dc.DrawRectangle(null, SelectionPen, crop);
-        }
+        var source = Source is null ? null : new BlurSource(Source, SourceOrigin);
+        foreach (var item in items) AnnotationPainter.Draw(dc, item, source);
 
         if (SelectedId is { } id && Items.FirstOrDefault(a => a.Id == id) is { } selected)
         {
@@ -88,6 +76,22 @@ internal sealed class EditorCanvas : FrameworkElement
                 dc.DrawRectangle(Brushes.White, handlePen,
                     new Rect(handle.X - HandleSize / 2, handle.Y - HandleSize / 2, HandleSize, HandleSize));
             }
+        }
+
+        // Кружки поверх маркеров: щелчок по кружку хватает кружок, а не маркер под ним
+        AnnotationPainter.DrawPins(dc, items, Letter);
+        if (PendingPinId is { } pendingId && Items.FirstOrDefault(a => a.Id == pendingId) is { HasNote: false } pending)
+        {
+            var next = Items.Count(a => a.HasNote) + 1;
+            AnnotationPainter.DrawPin(dc, AnnotationGeometry.PinCenter(pending), $"{Letter}{next}");
+        }
+
+        // Будущая обрезка: вне рамки затемнено, рамка пунктиром
+        if (CropPreview is { } crop)
+        {
+            var outer = new RectangleGeometry(new Rect(Offset.X, Offset.Y, PixelWidth, PixelHeight));
+            dc.DrawGeometry(CropShade, null, new CombinedGeometry(GeometryCombineMode.Exclude, outer, new RectangleGeometry(crop)));
+            dc.DrawRectangle(null, SelectionPen, crop);
         }
         dc.Pop();
         dc.Pop();

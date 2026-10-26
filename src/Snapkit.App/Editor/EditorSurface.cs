@@ -309,30 +309,23 @@ public sealed class EditorSurface : UserControl
         Refresh();
     }
 
-    /// <summary>
-    /// Выбор: у выделенной фигуры сначала маркеры размера, затем кружок заметки любой фигуры,
-    /// затем сама фигура — её можно тянуть целиком.
-    /// </summary>
+    /// <summary>Выбор: что хватает щелчок, решает AnnotationHandles.PickForSelect.</summary>
     private void BeginSelectDrag(PointD p)
     {
-        var tolerance = SelectToleranceDip * Scale;
-        var items = _history.Current;
-        if (_canvas.SelectedId is { } selectedId && items.FirstOrDefault(a => a.Id == selectedId) is { } selected
-            && AnnotationHandles.Hit(selected, p, HandleHitDip * Scale) is { } handle)
+        var target = AnnotationHandles.PickForSelect(_history.Current, _canvas.SelectedId, p, HandleHitDip * Scale, SelectToleranceDip * Scale);
+        _canvas.SelectedId = target?.Id;
+        switch (target?.Kind)
         {
-            StartDrag(p, DragMode.Handle, handle);
-            return;
+            case SelectTargetKind.Handle:
+                StartDrag(p, DragMode.Handle, target.Value.Handle);
+                break;
+            case SelectTargetKind.Pin:
+                StartDrag(p, DragMode.Pin, 0);
+                break;
+            case SelectTargetKind.Shape:
+                StartDrag(p, DragMode.Move, 0);
+                break;
         }
-        for (var i = items.Count - 1; i >= 0; i--)
-        {
-            // Отдельный кружок двигается целиком, кружок фигуры — отдельно от неё
-            if (items[i].Kind == AnnotationKind.Pin || !AnnotationHandles.HitPin(items[i], p, tolerance)) continue;
-            _canvas.SelectedId = items[i].Id;
-            StartDrag(p, DragMode.Pin, 0);
-            return;
-        }
-        _canvas.SelectedId = AnnotationGeometry.TopmostHit(items, p, tolerance);
-        if (_canvas.SelectedId is not null) StartDrag(p, DragMode.Move, 0);
     }
 
     private void StartDrag(PointD p, DragMode mode, int handle)

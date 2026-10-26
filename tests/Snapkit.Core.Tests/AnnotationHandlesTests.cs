@@ -89,4 +89,35 @@ public class AnnotationHandlesTests
     [Fact]
     public void HitPin_WithNote_OnCircle_IsTrue()
         => Assert.True(AnnotationHandles.HitPin(Box with { Note = "рамка" }, new PointD(15, 25), 4));
+
+    [Fact]
+    public void PickForSelect_PinOnSelectedCorner_TakesPin()
+    {
+        // Кружок рамки стоит в её левом верхнем углу — там же маркер размера 0
+        var noted = Box with { Note = "заметка" };
+        var target = AnnotationHandles.PickForSelect([noted], noted.Id, new PointD(10, 20), 8, 4);
+        Assert.Equal(new SelectTarget(SelectTargetKind.Pin, noted.Id), target);
+    }
+
+    [Fact]
+    public void PickForSelect_CornerWithoutNote_TakesHandle()
+        => Assert.Equal(new SelectTarget(SelectTargetKind.Handle, Box.Id, 0),
+            AnnotationHandles.PickForSelect([Box], Box.Id, new PointD(10, 20), 8, 4));
+
+    [Fact]
+    public void PickForSelect_OppositeCornerOfNotedBox_TakesHandle()
+    {
+        var noted = Box with { Note = "заметка" };
+        Assert.Equal(new SelectTarget(SelectTargetKind.Handle, noted.Id, 4),
+            AnnotationHandles.PickForSelect([noted], noted.Id, new PointD(110, 70), 8, 4));
+    }
+
+    [Fact]
+    public void PickForSelect_OnOutline_TakesShape()
+        => Assert.Equal(new SelectTarget(SelectTargetKind.Shape, Box.Id),
+            AnnotationHandles.PickForSelect([Box], null, new PointD(60, 70), 8, 4));
+
+    [Fact]
+    public void PickForSelect_Empty_ReturnsNull()
+        => Assert.Null(AnnotationHandles.PickForSelect([Box], null, new PointD(300, 300), 8, 4));
 }

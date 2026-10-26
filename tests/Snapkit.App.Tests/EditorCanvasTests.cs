@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Snapkit.App.Editor;
+using Snapkit.Core.Model;
 
 namespace Snapkit.App.Tests;
 
@@ -33,5 +34,23 @@ public class EditorCanvasTests
         var px = new byte[4];
         target.CopyPixels(new Int32Rect(60, 25, 1, 1), px, 4, 0);
         Assert.Equal((0, 0, 255), (px[0], px[1], px[2])); // точка (60,25) снимка — красная
+    });
+
+    [Fact]
+    public void Pin_IsDrawnOverSelectionHandles() => StaRunner.Run(() =>
+    {
+        // Кружок рамки стоит на её левом верхнем маркере; щелчок по нему хватает кружок,
+        // значит и виден должен быть кружок, а не белый квадрат маркера
+        var box = new Annotation(Guid.NewGuid(), AnnotationKind.Rectangle, [new(50, 50), new(150, 100)], "#E53935", 4, null, "заметка");
+        var canvas = new EditorCanvas { PixelWidth = 200, PixelHeight = 120, Items = [box], SelectedId = box.Id, HandleSize = 24 };
+        canvas.Measure(new Size(200, 120));
+        canvas.Arrange(new Rect(0, 0, 200, 120));
+        var target = new RenderTargetBitmap(200, 120, 96, 96, PixelFormats.Pbgra32);
+        target.Render(canvas);
+
+        // Точка внутри кружка (центр 50,50) выше надписи «A1» и внутри квадрата маркера
+        var px = new byte[4];
+        target.CopyPixels(new Int32Rect(50, 43, 1, 1), px, 4, 0);
+        Assert.Equal((0xF5, 0x7B, 0x2F), (px[0], px[1], px[2]));
     });
 }

@@ -30,6 +30,12 @@ public static class AnnotationPainter
     {
         var list = annotations as IReadOnlyList<Annotation> ?? annotations.ToList();
         foreach (var annotation in list) Draw(dc, annotation, source);
+        DrawPins(dc, list, letter);
+    }
+
+    /// <summary>Только кружки заметок с номерами — редактор рисует их поверх маркеров выделения.</summary>
+    public static void DrawPins(DrawingContext dc, IReadOnlyList<Annotation> list, char? letter)
+    {
         var number = 0;
         foreach (var annotation in list)
         {

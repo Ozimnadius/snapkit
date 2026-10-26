@@ -68,6 +68,24 @@ public static class AnnotationHandles
         return Math.Sqrt(dx * dx + dy * dy) <= AnnotationGeometry.PinDiameter / 2 + tolerance;
     }
 
+    /// <summary>
+    /// Что хватает щелчок инструмента «Выбор»: кружок заметки любой фигуры (отдельный кружок двигается
+    /// как фигура), затем маркер размера выделенной фигуры, затем сама фигура; null — пусто. Кружок
+    /// первым: он рисуется поверх маркеров и у рамок стоит на маркере левого верхнего угла — тот угол
+    /// всё равно можно тянуть маркерами верхней и левой сторон.
+    /// </summary>
+    public static SelectTarget? PickForSelect(IReadOnlyList<Annotation> items, Guid? selectedId, PointD p, double handleRadius, double tolerance)
+    {
+        for (var i = items.Count - 1; i >= 0; i--)
+        {
+            if (items[i].Kind != AnnotationKind.Pin && HitPin(items[i], p, tolerance))
+                return new SelectTarget(SelectTargetKind.Pin, items[i].Id);
+        }
+        if (selectedId is { } id && items.FirstOrDefault(a => a.Id == id) is { } selected && Hit(selected, p, handleRadius) is { } handle)
+            return new SelectTarget(SelectTargetKind.Handle, selected.Id, handle);
+        return AnnotationGeometry.TopmostHit(items, p, tolerance) is { } hit ? new SelectTarget(SelectTargetKind.Shape, hit) : null;
+    }
+
     /// <summary>Поставить кружок заметки в точку center, не двигая саму фигуру.</summary>
     public static Annotation WithPinAt(Annotation a, PointD center)
     {
@@ -81,3 +99,8 @@ public static class AnnotationHandles
         return (Math.Min(p.X, q.X), Math.Min(p.Y, q.Y), Math.Max(p.X, q.X), Math.Max(p.Y, q.Y));
     }
 }
+
+public enum SelectTargetKind { Handle, Pin, Shape }
+
+/// <summary>Цель щелчка «Выбора»: маркер Handle фигуры Id, её кружок заметки или она сама.</summary>
+public readonly record struct SelectTarget(SelectTargetKind Kind, Guid Id, int Handle = 0);
