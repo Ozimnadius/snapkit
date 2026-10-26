@@ -1,0 +1,29 @@
+using Snapkit.App.Editor;
+
+namespace Snapkit.App.Tests;
+
+public class EditorLayoutTests
+{
+    // Монитор 1920×1080 с панелью задач снизу: рабочая область по высоте 0…1032; панель инструментов 48
+    private const double WorkTop = 0, WorkBottom = 1032, Bar = 48;
+
+    [Fact]
+    public void Toolbar_BelowRegion_WhenThereIsRoom()
+        => Assert.Equal(510, EditorSurface.ToolbarTop(regionTop: 100, regionBottom: 500, Bar, WorkTop, WorkBottom));
+
+    [Fact]
+    public void Toolbar_AboveRegion_WhenNoRoomBelow()
+        => Assert.Equal(542, EditorSurface.ToolbarTop(regionTop: 600, regionBottom: 1000, Bar, WorkTop, WorkBottom));
+
+    [Fact]
+    public void Toolbar_InsideAboveTaskbar_WhenRegionIsWholeScreen()
+        => Assert.Equal(976, EditorSurface.ToolbarTop(regionTop: 0, regionBottom: 1080, Bar, WorkTop, WorkBottom));
+
+    [Fact]
+    public void Toolbar_StaysOnScreen_WhenImageIsBiggerThanScreen()
+    {
+        // Картинка 3000×2000 из буфера стоит по центру экрана: её края далеко за краями монитора
+        var top = EditorSurface.ToolbarTop(regionTop: -460, regionBottom: 1540, Bar, WorkTop, WorkBottom);
+        Assert.InRange(top, WorkTop, WorkBottom - Bar);
+    }
+}

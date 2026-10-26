@@ -462,6 +462,20 @@ public sealed class EditorSurface : UserControl
             .ToList());
     }
 
+    /// <summary>
+    /// Верх панели инструментов (в единицах WPF): под снимком; нет места — над ним;
+    /// и там нет — внутри снимка у нижнего края. Панель всегда остаётся в рабочей области:
+    /// у картинки больше экрана нижний край снимка за пределами монитора.
+    /// </summary>
+    internal static double ToolbarTop(double regionTop, double regionBottom, double barHeight, double workTop, double workBottom)
+    {
+        var barTop = regionBottom + ToolbarGap;
+        if (barTop + barHeight > workBottom - ScreenMargin) barTop = regionTop - barHeight - ToolbarGap;
+        if (barTop < ScreenMargin) barTop = regionBottom - barHeight - ToolbarGap;
+        var lowest = Math.Max(workTop + ScreenMargin, workBottom - barHeight - ScreenMargin);
+        return Math.Clamp(barTop, workTop + ScreenMargin, lowest);
+    }
+
     /// <summary>Холст — ровно на области снимка, панель инструментов — под ней (или над ней, если места нет).</summary>
     private void Layout()
     {
@@ -479,9 +493,7 @@ public sealed class EditorSurface : UserControl
         _toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var size = _toolbar.DesiredSize;
         var bottom = (_region.Y + _region.Height) / Scale;
-        var barTop = bottom + ToolbarGap;
-        if (barTop + size.Height > WorkBottom - ScreenMargin) barTop = top - size.Height - ToolbarGap;
-        if (barTop < ScreenMargin) barTop = bottom - size.Height - ToolbarGap;
+        var barTop = ToolbarTop(top, bottom, size.Height, _context.WorkArea.Y / Scale, WorkBottom);
         var barLeft = Math.Clamp(left, ScreenMargin, Math.Max(ScreenMargin, Width - size.Width - ScreenMargin));
         Canvas.SetLeft(_toolbar, barLeft);
         Canvas.SetTop(_toolbar, barTop);
