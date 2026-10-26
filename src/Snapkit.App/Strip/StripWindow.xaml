@@ -7,7 +7,7 @@
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
         Topmost="{Binding IsTopmost}"
-        AllowDrop="True" DragOver="Window_DragOver" Drop="Window_Drop"
+        AllowDrop="True" DragOver="Window_DragOver" Drop="Window_Drop" DragLeave="Window_DragLeave"
         FontFamily="Segoe UI" FontSize="13"
         Foreground="{StaticResource TextBrush}"
         UseLayoutRounding="True">
@@ -57,16 +57,13 @@
                     BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
                     Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
             <ScrollViewer MaxHeight="460" VerticalScrollBarVisibility="Auto">
-                <ItemsControl x:Name="CardsList" ItemsSource="{Binding Cards}">
+                <Grid>
+                <!-- Наведение раскрывает карточку, чья полоса под мышью (код окна поднимает её над стопкой) -->
+                <ItemsControl x:Name="CardsList" ItemsSource="{Binding Cards}"
+                              PreviewMouseMove="CardsList_PreviewMouseMove" MouseLeave="CardsList_MouseLeave">
                     <ItemsControl.ItemContainerStyle>
                         <Style TargetType="ContentPresenter">
                             <Setter Property="Margin" Value="{Binding TopMargin}" />
-                            <Style.Triggers>
-                                <!-- Наведение раскрывает карточку: она поднимается над стопкой и видна целиком -->
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Panel.ZIndex" Value="100" />
-                                </Trigger>
-                            </Style.Triggers>
                         </Style>
                     </ItemsControl.ItemContainerStyle>
                     <ItemsControl.ItemTemplate>
@@ -152,6 +149,10 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+                <!-- Линия «сюда встанет» при перетаскивании карточки -->
+                <Border x:Name="DropLine" Height="3" CornerRadius="1.5" Background="{StaticResource AccentBrush}"
+                        VerticalAlignment="Top" IsHitTestVisible="False" Visibility="Collapsed" Panel.ZIndex="200" />
+                </Grid>
             </ScrollViewer>
             </Border>
 

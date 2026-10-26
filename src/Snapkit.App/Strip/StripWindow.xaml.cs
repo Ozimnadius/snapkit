@@ -116,23 +116,60 @@ public partial class StripWindow : Window
         DragDrop.DoDragDrop((DependencyObject)sender, data, DragDropEffects.Copy | DragDropEffects.Move);
     }
 
+    private void CardsList_PreviewMouseMove(object sender, MouseEventArgs e)
+        => Expand(StripLayout.HoverIndex(e.GetPosition(CardsList).Y, ViewModel.Cards.Count,
+            StripViewModel.CardHeight, StripViewModel.StripeHeight));
+
+    private void CardsList_MouseLeave(object sender, MouseEventArgs e) => Expand(-1);
+
+    // Поднять над стопкой карточку index (-1 — ни одну); остальные — на своих местах
+    private void Expand(int index)
+    {
+        for (var i = 0; i < CardsList.Items.Count; i++)
+        {
+            if (CardsList.ItemContainerGenerator.ContainerFromIndex(i) is UIElement container)
+                Panel.SetZIndex(container, i == index ? 100 : 0);
+        }
+    }
+
+    // Место броска своей карточки — только над списком; координаты от верха списка, прокрутка учтена
+    private int? OwnDropSlot(DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(CaptureIdFormat)) return null;
+        var point = e.GetPosition(CardsList);
+        return StripLayout.DropSlotInside(point.X, point.Y, CardsList.ActualWidth, CardsList.ActualHeight,
+            ViewModel.Cards.Count, StripViewModel.CardHeight, StripViewModel.StripeHeight);
+    }
+
     private void Window_DragOver(object sender, DragEventArgs e)
     {
-        // Своя карточка — перестановка; файлы из Проводника — импорт картинок
-        e.Effects = e.Data.GetDataPresent(CaptureIdFormat) ? DragDropEffects.Move
-            : e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy
+        // Своя карточка — перестановка, но только над списком; файлы из Проводника — импорт картинок
+        var slot = OwnDropSlot(e);
+        e.Effects = slot is not null ? DragDropEffects.Move
+            : !e.Data.GetDataPresent(CaptureIdFormat) && e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy
             : DragDropEffects.None;
+        if (slot is { } s)
+        {
+            var top = StripLayout.SlotTop(s, ViewModel.Cards.Count, StripViewModel.CardHeight, StripViewModel.StripeHeight);
+            DropLine.Margin = new Thickness(0, Math.Max(0, top - 1.5), 0, 0);
+            DropLine.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            DropLine.Visibility = Visibility.Collapsed;
+        }
         e.Handled = true;
     }
 
+    private void Window_DragLeave(object sender, DragEventArgs e) => DropLine.Visibility = Visibility.Collapsed;
+
     private void Window_Drop(object sender, DragEventArgs e)
     {
+        DropLine.Visibility = Visibility.Collapsed;
         if (e.Data.GetData(CaptureIdFormat) is string text && Guid.TryParse(text, out var id))
         {
-            // Координата — от верха списка карточек, прокрутка уже учтена
-            var slot = StripLayout.DropSlot(e.GetPosition(CardsList).Y, ViewModel.Cards.Count,
-                StripViewModel.CardHeight, StripViewModel.StripeHeight);
-            ReorderRequested?.Invoke(this, (id, slot));
+            // Бросок мимо списка (заголовок, кнопки ленты) порядок не меняет
+            if (OwnDropSlot(e) is { } slot) ReorderRequested?.Invoke(this, (id, slot));
         }
         else if (e.Data.GetData(DataFormats.FileDrop) is string[] files)
         {
