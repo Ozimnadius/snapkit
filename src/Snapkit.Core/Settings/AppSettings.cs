@@ -13,4 +13,6 @@ public sealed record AppSettings(
     // Клавиши снимка через запятую: «PrintScreen, Ctrl+F12». Окно настроек клавиш — в этапе 4
     string CaptureHotkeys = "PrintScreen",
     // Свои цвета разметки через запятую, новые первыми, не больше 8
-    string CustomColors = "");
+    string CustomColors = "",
+    // Последняя папка «Сохранить снимок…» и «Сохранить пакет…»; пусто — «Изображения\Snapkit»
+    string LastSaveFolder = "");

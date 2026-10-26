@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows.Media.Imaging;
 using Snapkit.App.Imaging;
+using Snapkit.Core;
 
 namespace Snapkit.App.Files;
 
@@ -18,6 +19,26 @@ public static class CaptureFiles
         var path = Path.Combine(folder, DragFileName(letter));
         File.WriteAllBytes(path, ImageCodecs.EncodePng(rendered));
         return path;
+    }
+
+    /// <summary>Папка сохранения по умолчанию — «Изображения\Snapkit».</summary>
+    public static string DefaultSaveFolder { get; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Snapkit");
+
+    public static void SavePng(string path, BitmapSource rendered) => File.WriteAllBytes(path, ImageCodecs.EncodePng(rendered));
+
+    /// <summary>
+    /// Создать parent\&lt;время&gt; (или «… (2)», если занято) и положить A.png, B.png… и prompt.md;
+    /// вернуть путь папки.
+    /// </summary>
+    public static string SavePackage(string parent, DateTime now, IReadOnlyList<(LetteredCapture Item, BitmapSource Rendered)> package)
+    {
+        var name = PackageExport.UniqueName(PackageExport.TimestampName(now), n => Path.Exists(Path.Combine(parent, n)));
+        var folder = Path.Combine(parent, name);
+        Directory.CreateDirectory(folder);
+        foreach (var (item, rendered) in package) SavePng(Path.Combine(folder, PackageExport.ImageFileName(item.Letter)), rendered);
+        File.WriteAllText(Path.Combine(folder, "prompt.md"), PackageExport.BuildPromptMarkdown(package.Select(p => p.Item).ToList()));
+        return folder;
     }
 
     /// <summary>Удалить папку перетаскивания целиком; занятые файлы пропускаются до следующего раза.</summary>

@@ -239,6 +239,8 @@ public partial class App : Application
         _strip.ExitRequested += (_, _) => ExitApp();
         _strip.ReorderRequested += (_, drop) => _session.MoveBefore(drop.Id, drop.Slot);
         _strip.DragFileFor = DragFileFor;
+        _strip.SaveCaptureRequested += (_, id) => SaveCapture(id);
+        _strip.SavePackageRequested += (_, _) => SavePackage();
         _strip.TopmostToggled += (_, topmost) =>
         {
             _stripModel.IsTopmost = topmost;
@@ -263,6 +265,68 @@ public partial class App : Application
     private void StartNewCapture() => _capture.StartNewCapture();
 
     private static readonly string DragDirectory = Path.Combine(DataDirectory, "drag");
+
+    /// <summary>Папка для окон сохранения: последняя выбранная, иначе «Изображения\Snapkit».</summary>
+    private string SaveFolder()
+    {
+        var folder = _settings.LastSaveFolder is { Length: > 0 } last && Directory.Exists(last) ? last : CaptureFiles.DefaultSaveFolder;
+        Directory.CreateDirectory(folder);
+        return folder;
+    }
+
+    /// <summary>«Сохранить снимок…»: PNG с разметкой туда, куда укажут.</summary>
+    private void SaveCapture(Guid id)
+    {
+        var captures = _session.Model.Captures;
+        if (captures.FirstOrDefault(c => c.Id == id) is not { } capture) return;
+        try
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Сохранить снимок",
+                Filter = "PNG|*.png",
+                FileName = PackageExport.TimestampName(DateTime.Now) + ".png",
+                InitialDirectory = SaveFolder(),
+            };
+            if (dialog.ShowDialog(_strip) != true) return;
+            char? letter = CaptureLetters.Assign(captures).TryGetValue(id, out var l) ? l : null;
+            CaptureFiles.SavePng(dialog.FileName, CaptureRenderer.Render(_session.GetSource(id), capture, letter ?? 'A'));
+            SaveSettings(_settings with { LastSaveFolder = Path.GetDirectoryName(dialog.FileName) ?? "" });
+            Toasts.Show("Снимок сохранён");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("сохранение снимка", ex);
+            Toasts.Error("Не удалось сохранить файл. Подробности — в журнале");
+        }
+    }
+
+    /// <summary>«Сохранить пакет…»: папка с A.png, B.png… и prompt.md; отметки «отправлен» не меняются.</summary>
+    private void SavePackage()
+    {
+        var package = PackageSelector.ForExport(_session.Model.Captures);
+        if (package.Count == 0)
+        {
+            Toasts.Show("Сначала сделайте снимок.");
+            return;
+        }
+        try
+        {
+            var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Куда сохранить пакет", InitialDirectory = SaveFolder() };
+            if (dialog.ShowDialog(_strip) != true) return;
+            var items = package
+                .Select(p => (p, CaptureRenderer.Render(_session.GetSource(p.Capture.Id), p.Capture, p.Letter)))
+                .ToList();
+            var folder = CaptureFiles.SavePackage(dialog.FolderName, DateTime.Now, items);
+            SaveSettings(_settings with { LastSaveFolder = dialog.FolderName });
+            Toasts.Show("Пакет сохранён", "Открыть папку", () => System.Diagnostics.Process.Start("explorer.exe", $"\"{folder}\""));
+        }
+        catch (Exception ex)
+        {
+            Log.Error("сохранение пакета", ex);
+            Toasts.Error("Не удалось сохранить файл. Подробности — в журнале");
+        }
+    }
 
     /// <summary>Снимок с разметкой файлом для перетаскивания в другое окно; null — не получилось.</summary>
     private string? DragFileFor(Guid id)

@@ -61,6 +61,14 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_OldSettingsWithoutLastSaveFolder_IsEmpty()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(FilePath, """{ "launchAtStartup": true, "customColors": "#00E505" }""");
+        Assert.Equal("", new SettingsStore(FilePath).Load().Settings.LastSaveFolder);
+    }
+
+    [Fact]
     public void SaveThenLoad_RoundTrips()
     {
         var saved = new AppSettings(LaunchAtStartup: false, ClearStripAfterPaste: true, StripLeft: 100.5, StripTop: 42,

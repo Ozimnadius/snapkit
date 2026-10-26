@@ -56,6 +56,8 @@ public partial class StripWindow : Window
     public event EventHandler? ResendAllRequested;
     public event EventHandler? Moved;
     public event EventHandler<(Guid Id, int Slot)>? ReorderRequested;
+    public event EventHandler<Guid>? SaveCaptureRequested;
+    public event EventHandler? SavePackageRequested;
 
     private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -147,6 +149,11 @@ public partial class StripWindow : Window
         if (sender is FrameworkElement { Tag: Guid id }) DeleteCaptureRequested?.Invoke(this, id);
     }
 
+    private void Save_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Guid id }) SaveCaptureRequested?.Invoke(this, id);
+    }
+
     private void Copy_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { Tag: Guid id }) CopyCaptureRequested?.Invoke(this, id);
@@ -168,6 +175,7 @@ public partial class StripWindow : Window
         var resendAll = Item("Вся лента в пачку", ResendAllRequested);
         resendAll.IsEnabled = !ViewModel.IsEmpty;
         menu.Items.Add(resendAll);
+        menu.Items.Add(Item("Сохранить пакет…", SavePackageRequested));
         menu.Items.Add(Item("Очистить ленту", ClearRequested));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Выйти", ExitRequested));

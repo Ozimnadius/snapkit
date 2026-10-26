@@ -128,6 +128,8 @@
                                                 VerticalAlignment="Top" Margin="0,3,3,0" Visibility="Hidden">
                                         <Button Style="{StaticResource IconButton}" Content="&#xE8C8;" Foreground="White"
                                                 ToolTip="Копировать снимок" Tag="{Binding Id}" Click="Copy_Click" />
+                                        <Button Style="{StaticResource IconButton}" Content="&#xE74E;" Foreground="White"
+                                                ToolTip="Сохранить снимок…" Tag="{Binding Id}" Click="Save_Click" />
                                         <Button Style="{StaticResource IconButton}" Content="&#xE8BB;" Foreground="White"
                                                 ToolTip="Удалить снимок" Tag="{Binding Id}" Click="Delete_Click" />
                                     </StackPanel>
