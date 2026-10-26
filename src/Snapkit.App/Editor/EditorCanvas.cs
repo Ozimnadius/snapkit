@@ -31,6 +31,9 @@ internal sealed class EditorCanvas : FrameworkElement
 
     public Guid? SelectedId { get; set; }
 
+    /// <summary>Сторона маркера размера в пикселях холста (9 DIP с учётом масштаба монитора).</summary>
+    public double HandleSize { get; set; } = 9;
+
     /// <summary>Кружок, к которому сейчас пишут первую заметку: рисуется со следующим номером.</summary>
     public Guid? PendingPinId { get; set; }
 
@@ -65,6 +68,14 @@ internal sealed class EditorCanvas : FrameworkElement
             var (x, y, w, h) = AnnotationGeometry.Bounds(selected);
             var pad = selected.Thickness / 2 + 4;
             dc.DrawRectangle(null, SelectionPen, new Rect(x - pad, y - pad, w + 2 * pad, h + 2 * pad));
+            // Маркеры изменения размера: белые квадраты с обводкой цвета акцента
+            var handlePen = new Pen(Palette.Brush(Palette.Accent), HandleSize / 6);
+            handlePen.Freeze();
+            foreach (var handle in AnnotationHandles.Of(selected))
+            {
+                dc.DrawRectangle(Brushes.White, handlePen,
+                    new Rect(handle.X - HandleSize / 2, handle.Y - HandleSize / 2, HandleSize, HandleSize));
+            }
         }
         dc.Pop();
         dc.Pop();

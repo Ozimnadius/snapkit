@@ -20,6 +20,10 @@ public sealed class EditorSurface : UserControl
     private const double SelectToleranceDip = 6;
     private const double EdgeGripDip = 8;
     private const double MinShapeSize = 4;
+    // Маркер размера ловится в 8 DIP; штрих карандаша хранит точки не чаще 2 px снимка
+    private const double HandleHitDip = 8;
+    private const double HandleSizeDip = 9;
+    private const double StrokeStep = 2;
     private const double ToolbarGap = 10;
     private const double ScreenMargin = 8;
     private const double PanelGap = 12;
@@ -28,6 +32,9 @@ public sealed class EditorSurface : UserControl
     // Последние выбранные инструмент, варианты групп, цвет и толщина запоминаются между снимками
     private static EditorTool _lastTool = EditorTool.Rectangle;
     private static readonly Dictionary<ToolGroup, EditorTool> _lastVariant = [];
+    private static FillMode _lastFill = FillMode.None;
+    private static string? _lastFillColor;
+    private static LineStyle _lastLineStyle = LineStyle.Solid;
     private static string _lastColor = Palette.Markup[0];
     private static double _lastThickness = Palette.DefaultThickness;
 
@@ -45,7 +52,15 @@ public sealed class EditorSurface : UserControl
     private double _thickness = _lastThickness;
     private string _snapshotNote;
 
+    private FillMode _fill = _lastFill;
+    private string? _fillColor = _lastFillColor;
+    private LineStyle _lineStyle = _lastLineStyle;
+
+    private enum DragMode { None, Draw, Move, Handle, Pin }
+
     private PointD? _dragStart;
+    private DragMode _drag;
+    private int _dragHandle;
     private ImmutableList<Annotation>? _dragOriginal;
     private TextBox? _textBox;
     private PointD _textAnchor;
@@ -69,6 +84,7 @@ public sealed class EditorSurface : UserControl
         _canvas.Source = context.Source;
         _canvas.SourceOrigin = context.SourceOrigin;
         _canvas.ShowSource = context.ShowSource;
+        _canvas.HandleSize = HandleSizeDip * context.Scale;
         _canvas.Letter = context.Letter;
         _textLayer.RenderTransform = toPixels;
         _layer.Children.Add(_canvas);
@@ -224,18 +240,7 @@ public sealed class EditorSurface : UserControl
                 if (AnnotationGeometry.TopmostHit(_history.Current, p, SelectToleranceDip * Scale) is { } noted) OpenNote(noted);
                 break;
             case EditorTool.Select:
-                _canvas.SelectedId = AnnotationGeometry.TopmostHit(_history.Current, p, SelectToleranceDip * Scale);
-                if (_canvas.SelectedId is not null)
-                {
-                    _dragStart = p;
-                    _dragOriginal = _history.Current;
-                    _canvas.CaptureMouse();
-                }
-                break;
-            case EditorTool.Rectangle or EditorTool.Arrow:
-                _dragStart = p;
-                _canvas.Preview = NewShape(_tool == EditorTool.Rectangle ? AnnotationKind.Rectangle : AnnotationKind.Arrow, p, p);
-                _canvas.CaptureMouse();
+                BeginSelectDrag(p);
                 break;
             case EditorTool.Text:
                 OpenTextBox(p);
@@ -245,8 +250,60 @@ public sealed class EditorSurface : UserControl
                 _history.Push(_history.Current.Add(pin));
                 OpenNote(pin.Id);
                 break;
+            case EditorTool.Eraser:
+                if (AnnotationGeometry.TopmostHit(_history.Current, p, SelectToleranceDip * Scale) is { } erased)
+                {
+                    _history.Push(_history.Current.RemoveAll(a => a.Id == erased));
+                    if (_canvas.SelectedId == erased) _canvas.SelectedId = null;
+                }
+                break;
+            case EditorTool.Crop:
+                // Обрезка подключается в задаче 11
+                break;
+            default:
+                if (KindOf(_tool) is not { } kind) break;
+                _dragStart = p;
+                _drag = DragMode.Draw;
+                _canvas.Preview = kind == AnnotationKind.CurvedArrow ? NewShape(kind, p, p, p) : NewShape(kind, p, p);
+                _canvas.CaptureMouse();
+                break;
         }
         Refresh();
+    }
+
+    /// <summary>
+    /// Выбор: у выделенной фигуры сначала маркеры размера, затем кружок заметки любой фигуры,
+    /// затем сама фигура — её можно тянуть целиком.
+    /// </summary>
+    private void BeginSelectDrag(PointD p)
+    {
+        var tolerance = SelectToleranceDip * Scale;
+        var items = _history.Current;
+        if (_canvas.SelectedId is { } selectedId && items.FirstOrDefault(a => a.Id == selectedId) is { } selected
+            && AnnotationHandles.Hit(selected, p, HandleHitDip * Scale) is { } handle)
+        {
+            StartDrag(p, DragMode.Handle, handle);
+            return;
+        }
+        for (var i = items.Count - 1; i >= 0; i--)
+        {
+            // Отдельный кружок двигается целиком, кружок фигуры — отдельно от неё
+            if (items[i].Kind == AnnotationKind.Pin || !AnnotationHandles.HitPin(items[i], p, tolerance)) continue;
+            _canvas.SelectedId = items[i].Id;
+            StartDrag(p, DragMode.Pin, 0);
+            return;
+        }
+        _canvas.SelectedId = AnnotationGeometry.TopmostHit(items, p, tolerance);
+        if (_canvas.SelectedId is not null) StartDrag(p, DragMode.Move, 0);
+    }
+
+    private void StartDrag(PointD p, DragMode mode, int handle)
+    {
+        _dragStart = p;
+        _drag = mode;
+        _dragHandle = handle;
+        _dragOriginal = _history.Current;
+        _canvas.CaptureMouse();
     }
 
     private void OnCanvasMove(object sender, MouseEventArgs e)
@@ -254,22 +311,27 @@ public sealed class EditorSurface : UserControl
         var p = ToMonitor(e.GetPosition(_canvas));
         if (_dragStart is not { } start)
         {
-            _canvas.Cursor = _tool switch
-            {
-                EditorTool.Select => AnnotationGeometry.TopmostHit(_history.Current, p, SelectToleranceDip * Scale) is null ? Cursors.Arrow : Cursors.SizeAll,
-                EditorTool.Text => Cursors.IBeam,
-                _ => Cursors.Cross,
-            };
+            _canvas.Cursor = HoverCursor(p);
             return;
         }
 
-        if (_tool == EditorTool.Select && _dragOriginal is { } original && _canvas.SelectedId is { } id)
+        if (_drag != DragMode.Draw && _dragOriginal is { } original && _canvas.SelectedId is { } id)
         {
-            _canvas.Items = original.Select(a => a.Id == id ? AnnotationGeometry.Translate(a, p.X - start.X, p.Y - start.Y) : a).ToList();
+            _canvas.Items = original.Select(a => a.Id != id ? a : _drag switch
+            {
+                DragMode.Handle => AnnotationHandles.Move(a, _dragHandle, p),
+                DragMode.Pin => AnnotationHandles.WithPinAt(a, Offset(AnnotationGeometry.PinCenter(a), p.X - start.X, p.Y - start.Y)),
+                _ => AnnotationGeometry.Translate(a, p.X - start.X, p.Y - start.Y),
+            }).ToList();
         }
         else if (_canvas.Preview is { } preview)
         {
-            _canvas.Preview = preview with { Points = [start, p] };
+            _canvas.Preview = preview.Kind switch
+            {
+                AnnotationKind.Pencil or AnnotationKind.Marker => preview with { Points = preview.Points.Add(p) },
+                AnnotationKind.CurvedArrow => preview with { Points = [start, AnnotationGeometry.DefaultBend(start, p), p] },
+                _ => preview with { Points = [start, p] },
+            };
         }
         _canvas.InvalidateVisual();
     }
@@ -280,24 +342,69 @@ public sealed class EditorSurface : UserControl
         var p = ToMonitor(e.GetPosition(_canvas));
         _canvas.ReleaseMouseCapture();
 
-        if (_tool == EditorTool.Select && _dragOriginal is not null)
+        if (_drag != DragMode.Draw && _dragOriginal is not null)
         {
+            // Каждое законченное перетаскивание — один шаг истории
             if (p != start) _history.Push(_canvas.Items.ToImmutableList());
         }
-        else if (_canvas.Preview is { } shape && IsBigEnough(shape))
+        else if (_canvas.Preview is { } preview)
         {
-            _history.Push(_history.Current.Add(shape));
-            _dragStart = null;
-            _canvas.Preview = null;
-            // Сразу под новой фигурой — поле для комментария
-            OpenNote(shape.Id);
+            var shape = preview.Kind is AnnotationKind.Pencil or AnnotationKind.Marker
+                ? preview with { Points = StrokeSimplifier.Simplify(preview.Points, StrokeStep) }
+                : preview;
+            if (AnnotationGeometry.IsBigEnough(shape, MinShapeSize))
+            {
+                _history.Push(_history.Current.Add(shape));
+                _dragStart = null;
+                _canvas.Preview = null;
+                // Сразу под новой фигурой — поле для комментария
+                OpenNote(shape.Id);
+            }
         }
 
         _dragStart = null;
         _dragOriginal = null;
+        _drag = DragMode.None;
         _canvas.Preview = null;
         Refresh();
     }
+
+    private Cursor HoverCursor(PointD p)
+    {
+        var tolerance = SelectToleranceDip * Scale;
+        switch (_tool)
+        {
+            case EditorTool.Select:
+                if (_canvas.SelectedId is { } id && _history.Current.FirstOrDefault(a => a.Id == id) is { } selected
+                    && AnnotationHandles.Hit(selected, p, HandleHitDip * Scale) is not null)
+                    return Cursors.Hand;
+                return AnnotationGeometry.TopmostHit(_history.Current, p, tolerance) is null ? Cursors.Arrow : Cursors.SizeAll;
+            case EditorTool.Eraser:
+                return AnnotationGeometry.TopmostHit(_history.Current, p, tolerance) is null ? Cursors.No : Cursors.Hand;
+            case EditorTool.Text:
+                return Cursors.IBeam;
+            default:
+                return Cursors.Cross;
+        }
+    }
+
+    /// <summary>Вид фигуры, которую рисует инструмент перетаскиванием; у остальных инструментов — null.</summary>
+    private static AnnotationKind? KindOf(EditorTool tool) => tool switch
+    {
+        EditorTool.Rectangle => AnnotationKind.Rectangle,
+        EditorTool.RoundedRectangle => AnnotationKind.RoundedRectangle,
+        EditorTool.Ellipse => AnnotationKind.Ellipse,
+        EditorTool.Arrow => AnnotationKind.Arrow,
+        EditorTool.CurvedArrow => AnnotationKind.CurvedArrow,
+        EditorTool.WideArrow => AnnotationKind.WideArrow,
+        EditorTool.Line => AnnotationKind.Line,
+        EditorTool.Pencil => AnnotationKind.Pencil,
+        EditorTool.Marker => AnnotationKind.Marker,
+        EditorTool.Blur => AnnotationKind.Blur,
+        _ => null,
+    };
+
+    private static PointD Offset(PointD p, double dx, double dy) => new(p.X + dx, p.Y + dy);
 
     /// <summary>Открыть поле заметки под фигурой (для кружка — под ним).</summary>
     private void OpenNote(Guid id)
@@ -359,17 +466,13 @@ public sealed class EditorSurface : UserControl
         Refresh();
     }
 
-    private static bool IsBigEnough(Annotation shape)
-    {
-        var (a, b) = (shape.Points[0], shape.Points[1]);
-        var (w, h) = (Math.Abs(b.X - a.X), Math.Abs(b.Y - a.Y));
-        return shape.Kind == AnnotationKind.Rectangle
-            ? w >= MinShapeSize && h >= MinShapeSize
-            : Math.Sqrt(w * w + h * h) >= MinShapeSize;
-    }
-
+    // Новая фигура получает текущие цвет, толщину, стиль линии и — у рамок и овала — заливку
     private Annotation NewShape(AnnotationKind kind, params PointD[] points)
-        => new(Guid.NewGuid(), kind, [.. points], _color, _thickness, null, null);
+    {
+        var fillable = kind is AnnotationKind.Rectangle or AnnotationKind.RoundedRectangle or AnnotationKind.Ellipse;
+        return new Annotation(Guid.NewGuid(), kind, [.. points], _color, _thickness, null, null,
+            fillable ? _fill : FillMode.None, fillable ? _fillColor : null, _lineStyle);
+    }
 
     private void OpenTextBox(PointD p)
     {
