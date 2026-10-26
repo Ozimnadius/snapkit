@@ -56,6 +56,12 @@ public partial class StripWindow : Window
     public event EventHandler? ResendAllRequested;
     public event EventHandler? Moved;
     public event EventHandler<(Guid Id, int Slot)>? ReorderRequested;
+
+    /// <summary>Карточку бросили в другое окно и оно её приняло.</summary>
+    public event EventHandler<Guid>? DroppedOutside;
+
+    // Бросили на саму ленту (перестановка), а не в другое окно
+    private bool _droppedOnStrip;
     public event EventHandler<Guid>? SaveCaptureRequested;
     public event EventHandler? SavePackageRequested;
     public event EventHandler? ImportFileRequested;
@@ -113,7 +119,10 @@ public partial class StripWindow : Window
         var data = new DataObject();
         data.SetData(CaptureIdFormat, _pressId.ToString());
         if (DragFileFor?.Invoke(_pressId) is { } path) data.SetData(DataFormats.FileDrop, new[] { path });
-        DragDrop.DoDragDrop((DependencyObject)sender, data, DragDropEffects.Copy | DragDropEffects.Move);
+        _droppedOnStrip = false;
+        var id = _pressId;
+        var result = DragDrop.DoDragDrop((DependencyObject)sender, data, DragDropEffects.Copy | DragDropEffects.Move);
+        if (result != DragDropEffects.None && !_droppedOnStrip) DroppedOutside?.Invoke(this, id);
     }
 
     private void CardsList_PreviewMouseMove(object sender, MouseEventArgs e)
@@ -166,6 +175,7 @@ public partial class StripWindow : Window
     private void Window_Drop(object sender, DragEventArgs e)
     {
         DropLine.Visibility = Visibility.Collapsed;
+        _droppedOnStrip = true;
         if (e.Data.GetData(CaptureIdFormat) is string text && Guid.TryParse(text, out var id))
         {
             // Бросок мимо списка (заголовок, кнопки ленты) порядок не меняет

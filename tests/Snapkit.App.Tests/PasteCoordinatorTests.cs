@@ -157,4 +157,31 @@ public class PasteCoordinatorClipboardTests
         Assert.Contains(outcome?.Status, new PasteStatus?[] { PasteStatus.CompletedVerified, PasteStatus.StoppedTargetChanged });
         if (outcome?.Status == PasteStatus.CompletedVerified) Assert.Equal(3, presses);
     }
+
+    [Fact]
+    public void PasteText_PastesOnlyText()
+    {
+        // После переноса карточки в Telegram туда же вставляется текст заметок — без картинки
+        var dir = Path.Combine(Path.GetTempPath(), "snapkit-tests-" + Guid.NewGuid());
+        using var host = new ClipboardTestHost();
+        using var reader = new ForeignClipboard();
+        var presses = 0;
+        PasteOutcome? outcome = null;
+        host.Run(async () =>
+        {
+            var paste = new PasteCoordinator(new SessionService(new SessionStore(dir)), host.Service, new KeyRouter(() => default),
+                () => PastePlan.Empty, () => false,
+                send: strokes =>
+                {
+                    if (!strokes.Any(k => k.Vk == 0x56 && !k.Up)) return;
+                    presses++;
+                    reader.ReadAnonymously(ForeignClipboard.CF_UNICODETEXT);
+                });
+            outcome = await paste.PasteTextAsync("Снимок A" + Environment.NewLine + "A1 — кнопка", notesCount: 1);
+        });
+
+        Assert.Contains(outcome?.Status, new PasteStatus?[] { PasteStatus.CompletedVerified, PasteStatus.StoppedTargetChanged });
+        if (outcome?.Status == PasteStatus.CompletedVerified)
+            Assert.Equal((1, 0, 1), (presses, outcome.ImagesPasted, outcome.NotesCount));
+    }
 }

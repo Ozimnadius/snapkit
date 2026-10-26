@@ -49,10 +49,58 @@ internal static partial class Foreground
         }
     }
 
+    /// <summary>
+    /// Сделать активным чужое окно под курсором (туда только что бросили карточку). Возвращает имя
+    /// его процесса или null, если под курсором ничего нет или это окно самого Snapkit.
+    /// </summary>
+    public static string? ActivateUnderCursor()
+    {
+        if (!GetCursorPos(out var point)) return null;
+        var hwnd = WindowFromPoint(point);
+        if (hwnd == 0) return null;
+        var root = GetAncestor(hwnd, GaRoot);
+        if (root == 0) return null;
+        var pid = ProcessOf(root);
+        if (pid == Environment.ProcessId) return null;
+        // Как при снимке: на миг подключаемся к потоку активного окна, иначе Windows не даст переключить
+        var foreground = GetForegroundWindow();
+        var foregroundThread = foreground == 0 ? 0 : GetWindowThreadProcessId(foreground, out _);
+        var ownThread = GetCurrentThreadId();
+        var attached = foregroundThread != 0 && foregroundThread != ownThread && AttachThreadInput(ownThread, foregroundThread, true);
+        try
+        {
+            SetForegroundWindow(root);
+        }
+        finally
+        {
+            if (attached) AttachThreadInput(ownThread, foregroundThread, false);
+        }
+        return ProcessTree.NameOf(pid);
+    }
+
     public static void Restore(nint hwnd)
     {
         if (hwnd != 0) SetForegroundWindow(hwnd);
     }
+
+    private const uint GaRoot = 2;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetCursorPos(out NativePoint point);
+
+    [LibraryImport("user32.dll")]
+    private static partial nint WindowFromPoint(NativePoint point);
+
+    [LibraryImport("user32.dll")]
+    private static partial nint GetAncestor(nint hwnd, uint flags);
 
     [LibraryImport("user32.dll")]
     private static partial nint GetForegroundWindow();

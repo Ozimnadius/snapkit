@@ -48,7 +48,16 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
     public static TimeSpan ConfirmTimeoutFor(bool earlierStepUnconfirmed)
         => earlierStepUnconfirmed ? ShortConfirmTimeout : ConfirmTimeout;
 
-    public async Task<PasteOutcome> PasteBatchAsync()
+    public Task<PasteOutcome> PasteBatchAsync() => RunAsync(createPlan, "пачки");
+
+    /// <summary>
+    /// Вставить в активное окно только текст (заметки после переноса карточки): тот же путь, что
+    /// и у пачки, — проверка окна, Esc, повтор Ctrl+V, если текст не забран. Отметки не меняются.
+    /// </summary>
+    public Task<PasteOutcome> PasteTextAsync(string text, int notesCount)
+        => RunAsync(() => new PastePlan([], text, [], notesCount, FromStrip: false), "текста");
+
+    private async Task<PasteOutcome> RunAsync(Func<PastePlan> getPlan, string what)
     {
         if (IsRunning) return new PasteOutcome(PasteStatus.NothingToPaste, 0, 0);
         IsRunning = true;
@@ -58,9 +67,9 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
         {
             var target = Foreground.Current;
             var targetPid = Foreground.ProcessOf(target);
-            Log.Info($"Вставка пачки в {ProcessTree.NameOf(targetPid)} ({targetPid})");
-            var plan = createPlan();
-            if (plan.IsEmpty) return new PasteOutcome(PasteStatus.NothingToPaste, 0, 0);
+            Log.Info($"Вставка {what} в {ProcessTree.NameOf(targetPid)} ({targetPid})");
+            var plan = getPlan();
+            if (plan.IsEmpty && plan.Text.Length == 0) return new PasteOutcome(PasteStatus.NothingToPaste, 0, 0);
             // «Повторить последнюю вставку» вернёт эту пачку, даже если вставку остановят
             if (plan.FromStrip) session.RememberPaste(plan.CaptureIds);
 

@@ -268,6 +268,7 @@ public partial class App : Application
         _strip.MinimizeRequested += (_, _) => ApplyStripView(StripPresence.OnMinimize(_settings.ShowStrip));
         _strip.ReorderRequested += (_, drop) => _session.MoveBefore(drop.Id, drop.Slot);
         _strip.DragFileFor = DragFileFor;
+        _strip.DroppedOutside += (_, id) => PasteNotesAfterDrop(id);
         _strip.SaveCaptureRequested += (_, id) => SaveCapture(id);
         _strip.SavePackageRequested += (_, _) => SavePackage();
         _strip.FilesDropped += (_, files) => ImportImages(files);
@@ -424,6 +425,36 @@ public partial class App : Application
             Log.Error("сохранение пакета", ex);
             Toasts.Error("Не удалось сохранить файл. Подробности — в журнале");
         }
+    }
+
+    // Окну-получателю нужно время, чтобы открыть поле подписи к фото (Telegram)
+    private static readonly TimeSpan AfterDropPause = TimeSpan.FromMilliseconds(400);
+
+    /// <summary>
+    /// Картинку получатель забрал перетаскиванием; текст заметок Snapkit вставляет туда сам —
+    /// в Telegram он встаёт подписью к фото. Не дошёл — остаётся в буфере для ручного Ctrl+V.
+    /// </summary>
+    private async void PasteNotesAfterDrop(Guid id)
+    {
+        try
+        {
+            if (_paste is null) return;
+            var captures = _session.Model.Captures;
+            if (captures.FirstOrDefault(c => c.Id == id) is not { } capture) return;
+            var letter = CaptureLetters.Assign(captures).TryGetValue(id, out var l) ? l : 'A';
+            var text = PromptBuilder.Build([new LetteredCapture(letter, capture)]);
+            if (!DropNotes.ShouldPaste(text.Length == 0 ? null : Foreground.ActivateUnderCursor(), text)) return;
+            await Task.Delay(AfterDropPause);
+            var outcome = await _paste.PasteTextAsync(text, capture.NoteCount);
+            Log.Info($"Заметки после переноса: {outcome}");
+            // Текст положен и Ctrl+V нажат, но окно его не забрало — пусть вставят вручную
+            if (outcome.Status == PasteStatus.CompletedUnverified) Toasts.Show("Текст заметок в буфере — нажмите Ctrl+V");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("заметки после переноса", ex);
+        }
+        UpdatePasteState();
     }
 
     /// <summary>Снимок с разметкой файлом для перетаскивания в другое окно; null — не получилось.</summary>
