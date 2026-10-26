@@ -59,7 +59,7 @@ public sealed class PackagePublisherTests : IDisposable
     [Fact]
     public void CopyCapture_PutsImageAndItsCommentText()
     {
-        // Один снимок вставляется как пакет из одного: картинка и его комментарии, буква A
+        // Один снимок вставляется как пакет из одного: картинка и его комментарии, буква — его место на ленте
         SessionService? session = null;
         PackagePublisher? publisher = null;
         Guid second = default;
@@ -72,13 +72,13 @@ public sealed class PackagePublisherTests : IDisposable
             await publisher.CopyCaptureAsync(second);
         });
 
-        Assert.Equal("Снимок A\r\nA1 — второй", _foreign.ReadText());
+        Assert.Equal("Снимок B\r\nB1 — второй", _foreign.ReadText());
         Assert.True(_host.Service.IsPackageCurrent());
         PastePlan? plan = null;
         _host.Run(() => { plan = publisher!.CreatePastePlan(); return Task.CompletedTask; });
         Assert.Single(plan!.Images);
         Assert.Equal(new[] { second }, plan.CaptureIds);
-        Assert.Equal("Снимок A\nA1 — второй", plan.Text);
+        Assert.Equal("Снимок B\nB1 — второй", plan.Text);
         Assert.False(plan.FromStrip);
         _host.Run(() => session!.FlushAsync());
     }

@@ -5,14 +5,14 @@ namespace Snapkit.Core;
 /// <summary>Снимок пакета вместе с его буквой.</summary>
 public readonly record struct LetteredCapture(char Letter, Capture Capture);
 
-/// <summary>Пакет — неотправленные снимки ленты в её порядке, с буквами A, B, C…</summary>
+/// <summary>Пакет — неотправленные снимки ленты в её порядке, с буквами их мест на ленте.</summary>
 public static class PackageSelector
 {
     public static IReadOnlyList<LetteredCapture> Select(IReadOnlyList<Capture> strip)
     {
         var letters = CaptureLetters.Assign(strip);
         return strip
-            .Where(c => letters.ContainsKey(c.Id))
+            .Where(c => !c.IsSent)
             .Select(c => new LetteredCapture(letters[c.Id], c))
             .ToList();
     }
@@ -24,7 +24,7 @@ public static class PackageSelector
     public static IReadOnlyList<LetteredCapture> ForExport(IReadOnlyList<Capture> strip)
     {
         if (strip.Any(c => !c.IsSent)) return Select(strip);
-        var letter = 'A';
-        return strip.Select(c => new LetteredCapture(letter++, c)).ToList();
+        var letters = CaptureLetters.Assign(strip);
+        return strip.Select(c => new LetteredCapture(letters[c.Id], c)).ToList();
     }
 }

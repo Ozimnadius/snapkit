@@ -20,6 +20,7 @@ public class PackageSelectorTests
     {
         Capture[] strip = [Cap(sent: true), Cap(), Cap(sent: true), Cap()];
         var package = PackageSelector.ForExport(strip);
-        Assert.Equal([('A', strip[1].Id), ('B', strip[3].Id)], package.Select(p => (p.Letter, p.Capture.Id)));
+        // Буква — место на ленте: выбранные второй и четвёртый — B и D
+        Assert.Equal([('B', strip[1].Id), ('D', strip[3].Id)], package.Select(p => (p.Letter, p.Capture.Id)));
     }
 }

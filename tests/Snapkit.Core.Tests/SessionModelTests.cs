@@ -133,7 +133,8 @@ public class SessionModelTests
     {
         var (model, a, b, c) = Strip();
         model.SetSent(b.Id, true);
-        Assert.Equal([('A', a.Id), ('B', c.Id)], Package(model));
+        // Буквы не сдвигаются: убрали B — у c по-прежнему C
+        Assert.Equal([('A', a.Id), ('C', c.Id)], Package(model));
     }
 
     [Fact]
@@ -150,7 +151,7 @@ public class SessionModelTests
     {
         var (model, _, _, c) = Strip();
         model.ResendOnly([c.Id, Guid.NewGuid()]);
-        Assert.Equal([('A', c.Id)], Package(model));
+        Assert.Equal([('C', c.Id)], Package(model));
         Assert.Equal(3, model.Captures.Count);
     }
 

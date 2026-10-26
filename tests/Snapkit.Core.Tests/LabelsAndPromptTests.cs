@@ -14,13 +14,12 @@ public class LabelsAndPromptTests
         DateTimeOffset.UnixEpoch);
 
     [Fact]
-    public void Letters_SkipSentCaptures()
+    public void Letters_ArePositionsInStrip()
     {
+        // Буква закреплена за местом на ленте: отправленный снимок сверху не сдвигает буквы остальных
         var sent = Cap(true); var first = Cap(false); var second = Cap(false);
         var letters = CaptureLetters.Assign([sent, first, second]);
-        Assert.False(letters.ContainsKey(sent.Id));
-        Assert.Equal('A', letters[first.Id]);
-        Assert.Equal('B', letters[second.Id]);
+        Assert.Equal(('A', 'B', 'C'), (letters[sent.Id], letters[first.Id], letters[second.Id]));
     }
 
     [Fact]
@@ -78,7 +77,7 @@ public class LabelsAndPromptTests
     public void Package_IsUnsentInStripOrderWithLetters()
     {
         var s = Cap(true); var u1 = Cap(false); var u2 = Cap(false);
-        Assert.Equal(new LetteredCapture[] { new('A', u1), new('B', u2) }, PackageSelector.Select([u1, s, u2]));
+        Assert.Equal(new LetteredCapture[] { new('A', u1), new('C', u2) }, PackageSelector.Select([u1, s, u2]));
     }
 
     [Fact]

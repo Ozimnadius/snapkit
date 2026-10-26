@@ -54,7 +54,8 @@ public sealed class StripViewModel : ObservableObject
         for (var i = 0; i < captures.Count; i++)
         {
             var capture = captures[i];
-            char? letter = letters.TryGetValue(capture.Id, out var l) ? l : null;
+            // У отправленного на значке галочка, а не буква
+            char? letter = capture.IsSent ? null : letters[capture.Id];
             var thumb = _thumbs.TryGetValue(capture.Id, out var cached)
                         && ReferenceEquals(cached.Capture, capture) && cached.Letter == letter
                 ? cached.Thumb
@@ -66,8 +67,9 @@ public sealed class StripViewModel : ObservableObject
         }
         _thumbs = thumbs;
 
-        UnsentCount = letters.Count;
+        var unsent = captures.Count(c => !c.IsSent);
+        UnsentCount = unsent;
         IsEmpty = captures.Count == 0;
-        ShowSoftWarning = letters.Count >= SessionModel.SoftWarningUnsent;
+        ShowSoftWarning = unsent >= SessionModel.SoftWarningUnsent;
     }
 }

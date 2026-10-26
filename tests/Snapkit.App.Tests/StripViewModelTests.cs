@@ -28,8 +28,8 @@ public class StripViewModelTests
         Assert.Equal(3, vm.Cards.Count);
         Assert.Equal(2, vm.UnsentCount);
         Assert.Equal((null, true), (vm.Cards[0].Letter, vm.Cards[0].IsSent));
-        Assert.Equal(("A", false), (vm.Cards[1].Letter, vm.Cards[1].IsSent));
-        Assert.Equal("B", vm.Cards[2].Letter);
+        Assert.Equal(("B", false), (vm.Cards[1].Letter, vm.Cards[1].IsSent));
+        Assert.Equal("C", vm.Cards[2].Letter);
         Assert.Equal(1, vm.Cards[1].NoteCount);
         // Стопка: первая карточка без сдвига, каждая следующая наезжает на предыдущую
         Assert.Equal(0, vm.Cards[0].TopMargin.Top);
@@ -91,7 +91,8 @@ public class StripViewModelTests
     {
         var vm = new StripViewModel();
         vm.Refresh([Cap(), Cap(sent: true), Cap()], (_, _) => Thumb());
-        Assert.Equal(["A", null, "B"], vm.Cards.Select(c => c.Letter));
+        // Буква — место на ленте: у отправленного галочка, у следующего — C, а не B
+        Assert.Equal(["A", null, "C"], vm.Cards.Select(c => c.Letter));
         Assert.True(vm.Cards[1].IsSent);
         Assert.Equal("Отправлен — щёлкните, чтобы вставить ещё раз", vm.Cards[1].BadgeToolTip);
     });

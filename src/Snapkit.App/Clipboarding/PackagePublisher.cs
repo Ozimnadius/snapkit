@@ -6,6 +6,7 @@ using Snapkit.App.Rendering;
 using Snapkit.App.Session;
 using Snapkit.Core;
 using Snapkit.Core.Model;
+using Snapkit.Core.Session;
 
 namespace Snapkit.App.Clipboarding;
 
@@ -52,8 +53,9 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
     {
         StripSource => Plan(PackageSelector.Select(session.Model.Captures), fromStrip: true),
         SingleSource single when session.Model.Captures.FirstOrDefault(c => c.Id == single.CaptureId) is { } capture
-            => Plan([new LetteredCapture('A', capture)], fromStrip: false),
-        DraftSource draft => Plan([new LetteredCapture('A', draft.Capture)], fromStrip: false, draft.Image),
+            => Plan([new LetteredCapture(CaptureLetters.Assign(session.Model.Captures)[capture.Id], capture)], fromStrip: false),
+        DraftSource draft => Plan([new LetteredCapture(CaptureLetters.ForNew(session.Model.Captures.Count, SessionModel.MaxCaptures),
+            draft.Capture)], fromStrip: false, draft.Image),
         _ => PastePlan.Empty,
     };
 

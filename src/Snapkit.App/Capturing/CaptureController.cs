@@ -139,7 +139,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
         window.PresetRegion(local);
 
         // Буква — та, которую снимок получит, если после правки снова станет неотправленным
-        var letters = CaptureLetters.Assign(session.Model.Captures.Select(c => c.Id == captureId ? c with { IsSent = false } : c));
+        var letters = CaptureLetters.Assign(session.Model.Captures);
         // Редактору — настоящее место снимка, а не рамка окна: рамка не выходит за монитор, и картинка
         // больше экрана сдвинулась бы к его углу, а разметка встала бы не туда
         var editor = new EditorSurface(CreateContext(window, local, source, new PointD(local.X, local.Y), showSource: true,
@@ -232,7 +232,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
         foreach (var other in _windows.Where(w => w != window)) other.SelectionLocked = true;
 
         var editor = new EditorSurface(CreateContext(window, window.Region!.Value, window.Frame, new PointD(0, 0), showSource: false,
-            [], "", (char)('A' + session.Model.UnsentCount), regionEditable: true));
+            [], "", CaptureLetters.ForNew(session.Model.Captures.Count, SessionModel.MaxCaptures), regionEditable: true));
         editor.Done += (_, result) => CompleteNew(window, editor.Region, result);
         editor.CopyRequested += (_, _) => CopyFromEditor(editor, Crop(window.Frame, editor.Region));
         editor.CropRequested += (_, area) => ApplyCrop(window, editor, area);
