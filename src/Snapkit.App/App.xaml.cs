@@ -58,8 +58,13 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += (_, args) => Log.Error("необработанное исключение", (Exception)args.ExceptionObject);
 
-        if (!SingleInstance.TryAcquire(() => Dispatcher.BeginInvoke(ShowStrip)))
+        if (!SingleInstance.TryAcquire(() => Dispatcher.BeginInvoke(() =>
+            {
+                Log.Info("Повторный запуск Snapkit — показываю ленту");
+                ShowStrip();
+            })))
         {
+            Log.Info("Snapkit уже запущен — попросил его показать ленту");
             Shutdown();
             return;
         }
@@ -97,6 +102,8 @@ public partial class App : Application
 
         _stripModel = new StripViewModel { IsTopmost = _settings.StripTopmost };
         _strip = new StripWindow(_stripModel);
+        // Окно ленты закрывают только в обход программы (Диспетчер задач, Alt+F4) — для разбора сбоев
+        _strip.Closed += (_, _) => Log.Info("Окно ленты закрыто");
         _capture = new CaptureController(_session, HideChrome, RestoreChrome)
         {
             CopyDraft = async (source, annotations, note) =>
@@ -117,6 +124,7 @@ public partial class App : Application
             Log.Error("восстановление ленты", ex);
             Toasts.Error("Не удалось восстановить ленту после сбоя");
         }
+        Log.Info($"Запуск Snapkit: восстановлено снимков с диска — {restored}");
 
         UpdatePasteState();
         RefreshStrip();
@@ -136,6 +144,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        Log.Info(_clearOnExit ? "Выход из Snapkit с очисткой ленты" : "Выход из Snapkit");
         _hook?.Dispose();
         _tray?.Dispose();
         _clipboard?.Dispose();

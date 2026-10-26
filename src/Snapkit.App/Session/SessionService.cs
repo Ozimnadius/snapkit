@@ -86,6 +86,7 @@ public sealed class SessionService(SessionStore store)
     /// <summary>Очистить ленту в памяти и на диске.</summary>
     public void ClearAll()
     {
+        Log.Info($"Лента очищена, снимков было {Model.Captures.Count}");
         Model.Clear();
         _sources.Clear();
         _latest = [];
