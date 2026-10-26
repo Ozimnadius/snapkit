@@ -98,6 +98,7 @@ public partial class App : Application
         }
         Toasts.Enabled = _settings.ShowNotifications;
         Sounds.Enabled = _settings.PlaySounds;
+        Sounds.Directory = Path.Combine(DataDirectory, "sounds");
         ApplyAutoStart();
 
         _session = new SessionService(new SessionStore(Path.Combine(DataDirectory, "session")));
