@@ -80,6 +80,21 @@ public class EditorSurfaceTests
         Assert.True(cancelled, "пипетка осталась включённой после смены инструмента");
     });
 
+    [Fact]
+    public void ColorPicker_PipetteButton_ShowsWholeLabel() => UiApp.Run(() =>
+    {
+        // Стиль значка задаёт кнопке ширину 28 — от надписи «Пипетка» оставалась одна буква
+        var picker = new ColorPickerPopup(ColorTarget.Stroke, "#E53935", []);
+        picker.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        picker.Arrange(new Rect(picker.DesiredSize));
+        var pipette = Descendants(picker).OfType<Button>().Single(b => Equals(b.ToolTip, "Взять цвет со снимка"));
+        // Сколько надписи нужно без ограничений (внутри кнопки её мерят по ширине кнопки)
+        var label = (FrameworkElement)pipette.Content;
+        label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        Assert.True(pipette.ActualWidth >= label.DesiredSize.Width,
+            $"кнопка {pipette.ActualWidth:0} уже надписи {label.DesiredSize.Width:0}");
+    });
+
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
         => LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>().SelectMany(Descendants).Prepend(root);
 }

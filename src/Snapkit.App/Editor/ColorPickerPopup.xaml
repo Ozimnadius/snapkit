@@ -57,9 +57,9 @@
                          ToolTip="Код цвета, например #E53935. Enter — выбрать" PreviewKeyDown="HexBox_PreviewKeyDown" />
                 <Button Grid.Column="2" Style="{StaticResource AccentButton}" Content="Выбрать" Height="28" Click="Choose_Click" />
             </Grid>
-            <Button Style="{StaticResource IconButton}" HorizontalAlignment="Left" Height="30" Margin="0,8,0,0"
-                    Padding="6,0" Click="Pipette_Click" ToolTip="Взять цвет со снимка">
-                <StackPanel Orientation="Horizontal">
+            <Button Style="{StaticResource IconButton}" HorizontalAlignment="Left" Width="Auto" Height="30" Margin="0,8,0,0"
+                    Click="Pipette_Click" ToolTip="Взять цвет со снимка">
+                <StackPanel Orientation="Horizontal" Margin="6,0,8,0">
                     <TextBlock Text="&#xEF3C;" FontFamily="{StaticResource IconFont}" FontSize="14" VerticalAlignment="Center" />
                     <TextBlock Text="Пипетка" FontFamily="Segoe UI" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
                 </StackPanel>
