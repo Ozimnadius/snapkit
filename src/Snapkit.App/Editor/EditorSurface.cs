@@ -108,8 +108,8 @@ public sealed class EditorSurface : UserControl
 
         _toolbar.ToolSelected += (_, tool) => SetTool(tool);
         _toolbar.ColorPickerRequested += (_, target) => OpenColorPicker(target);
-        _toolbar.FillSelected += (_, fill) => SetFill(fill, _fillColor);
-        _toolbar.FillColorReset += (_, _) => SetFill(_fill, null);
+        _toolbar.FillSelected += (_, fill) => SetFill(fill);
+        _toolbar.FillColorReset += (_, _) => SetFillColor(null);
         _toolbar.ThicknessSelected += (_, thickness) =>
         {
             _thickness = _lastThickness = thickness;
@@ -621,18 +621,23 @@ public sealed class EditorSurface : UserControl
         Refresh();
     }
 
-    private static bool IsFillable(AnnotationKind kind)
-        => kind is AnnotationKind.Rectangle or AnnotationKind.RoundedRectangle or AnnotationKind.Ellipse;
-
     // Стиль линии есть у контуров и штрихов; у текста, кружка, маркера и размытия — нет
     private static bool HasLineStyle(AnnotationKind kind)
         => kind is not (AnnotationKind.Text or AnnotationKind.Pin or AnnotationKind.Marker or AnnotationKind.Blur or AnnotationKind.WideArrow);
 
-    private void SetFill(FillMode fill, string? fillColor)
+    // У выделенной фигуры меняется только выбранное свойство заливки, второе остаётся её собственным
+    private void SetFill(FillMode fill)
     {
         _fill = _lastFill = fill;
+        ApplyToSelected(a => AnnotationStyle.WithFill(a, fill));
+    }
+
+    private void SetFillColor(string? fillColor)
+    {
+        // Выбрали цвет заливки — значит, заливка нужна: без неё включаем сплошную
+        if (fillColor is not null && _fill == FillMode.None) _fill = _lastFill = FillMode.Solid;
         _fillColor = _lastFillColor = fillColor;
-        ApplyToSelected(a => IsFillable(a.Kind) ? a with { Fill = fill, FillColor = fillColor } : a);
+        ApplyToSelected(a => AnnotationStyle.WithFillColor(a, fillColor));
     }
 
     private void OpenColorPicker(ColorTarget target)
@@ -684,8 +689,7 @@ public sealed class EditorSurface : UserControl
         }
         else
         {
-            // Выбрали цвет заливки — значит, заливка нужна: без неё включаем сплошную
-            SetFill(_fill == FillMode.None ? FillMode.Solid : _fill, hex);
+            SetFillColor(hex);
         }
     }
 
@@ -715,7 +719,7 @@ public sealed class EditorSurface : UserControl
         _canvas.Items = _history.Current;
         _canvas.InvalidateVisual();
         var selected = _canvas.SelectedId is { } id ? _history.Current.FirstOrDefault(a => a.Id == id) : null;
-        var fillApplicable = EditorKeys.GroupOf(_tool) == ToolGroup.Shape || (selected is not null && IsFillable(selected.Kind));
+        var fillApplicable = EditorKeys.GroupOf(_tool) == ToolGroup.Shape || (selected is not null && AnnotationStyle.IsFillable(selected.Kind));
         _toolbar.Show(_tool, _lastVariant, _color, _thickness, _fill, _fillColor, _lineStyle, fillApplicable,
             _history.CanUndo, _history.CanRedo);
 
