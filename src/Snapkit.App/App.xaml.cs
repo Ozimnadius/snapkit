@@ -126,6 +126,13 @@ public partial class App : Application
             CustomColors = () => _settings.CustomColors,
             SaveCustomColors = colors => SaveSettings(_settings with { CustomColors = colors }),
         };
+        _capture.CaptureAdded += (_, id) => OnCaptureAdded(id);
+        _capture.StripFull += (_, _) =>
+        {
+            Toasts.Show(CaptureFeedback.StripFull);
+            ShowStrip();
+        };
+        _stripModel.ShowStripSetting = _settings.ShowStrip;
         WireStrip();
         WireTray();
         // Перехват клавиш — до восстановления ленты: что бы ни случилось с лентой, Print Screen работает
@@ -143,7 +150,7 @@ public partial class App : Application
         UpdatePasteState();
         RefreshStrip();
         PlaceStrip();
-        _strip.Show();
+        if (_settings.ShowStrip) _strip.Show();
 
         if (settingsWereReset) Toasts.Show("Файл настроек не читался, настройки созданы заново");
         // После установки новой версии лента тоже читается с диска, но это не сбой
@@ -237,6 +244,7 @@ public partial class App : Application
         _strip.CopyPackageRequested += (_, _) => RunClipboard(_publisher.CopyPackageCommandAsync);
         _strip.CopyCaptureRequested += (_, id) => RunClipboard(() => _publisher.CopyCaptureAsync(id));
         _strip.ExitRequested += (_, _) => ExitApp();
+        _strip.ShowStripToggled += (_, show) => SetShowStrip(show);
         _strip.ReorderRequested += (_, drop) => _session.MoveBefore(drop.Id, drop.Slot);
         _strip.DragFileFor = DragFileFor;
         _strip.SaveCaptureRequested += (_, id) => SaveCapture(id);
@@ -271,9 +279,42 @@ public partial class App : Application
             else ShowStrip();
         };
         _tray.ExitRequested += (_, _) => ExitApp();
+        _tray.ShowStripChecked = _settings.ShowStrip;
+        _tray.ShowStripToggled += (_, show) => SetShowStrip(show);
     }
 
     private void StartNewCapture() => _capture.StartNewCapture();
+
+    /// <summary>
+    /// Новый снимок: лента включена — она появляется, даже если её свернули; выключена —
+    /// короткое уведомление, что снимок в пачке.
+    /// </summary>
+    private void OnCaptureAdded(Guid id)
+    {
+        if (_settings.ShowStrip)
+        {
+            if (!_strip.IsVisible) _strip.Show();
+            return;
+        }
+        if (CaptureLetters.Assign(_session.Model.Captures).TryGetValue(id, out var letter))
+            Toasts.Show(CaptureFeedback.Ready(letter));
+    }
+
+    /// <summary>Галочка «Показывать ленту» (меню значка у часов или «…» ленты): сразу показать или спрятать.</summary>
+    private void SetShowStrip(bool show)
+    {
+        SaveSettings(_settings with { ShowStrip = show });
+        _stripModel.ShowStripSetting = show;
+        if (_tray is not null) _tray.ShowStripChecked = show;
+        if (show)
+        {
+            if (!_strip.IsVisible) _strip.Show();
+        }
+        else
+        {
+            _strip.Hide();
+        }
+    }
 
     private static readonly string DragDirectory = Path.Combine(DataDirectory, "drag");
 
@@ -556,9 +597,9 @@ public partial class App : Application
 
     private void ImportImageFromClipboard()
     {
-        if (_session.Model.IsFull)
+        if (!_session.Model.CanMakeRoom)
         {
-            Toasts.Show($"В ленте максимум {SessionModel.MaxCaptures} снимков. Отправьте или удалите лишние");
+            Toasts.Show(CaptureFeedback.StripFull);
             return;
         }
 

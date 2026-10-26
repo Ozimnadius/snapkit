@@ -69,6 +69,22 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_OldSettingsWithoutShowStrip_ShowsStrip()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(FilePath, """{ "launchAtStartup": true, "customColors": "#00E505" }""");
+        Assert.True(new SettingsStore(FilePath).Load().Settings.ShowStrip);
+    }
+
+    [Fact]
+    public void ShowStrip_RoundTrip()
+    {
+        new SettingsStore(FilePath).Save(new AppSettings(ShowStrip: false, LastSaveFolder: @"D:\Снимки"));
+        var loaded = new SettingsStore(FilePath).Load().Settings;
+        Assert.Equal((false, @"D:\Снимки"), (loaded.ShowStrip, loaded.LastSaveFolder));
+    }
+
+    [Fact]
     public void SaveThenLoad_RoundTrips()
     {
         var saved = new AppSettings(LaunchAtStartup: false, ClearStripAfterPaste: true, StripLeft: 100.5, StripTop: 42,

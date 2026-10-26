@@ -38,12 +38,19 @@ public sealed partial class CaptureController(SessionService session, Action hid
 
     public event EventHandler? Closed;
 
+    /// <summary>Новый снимок встал на ленту (не повторное открытие).</summary>
+    public event EventHandler<Guid>? CaptureAdded;
+
+    /// <summary>Снимок не начат: в ленте нет места — все снимки неотправленные.</summary>
+    public event EventHandler? StripFull;
+
     public void StartNewCapture()
     {
         if (IsOpen) return;
-        if (session.Model.IsFull)
+        // Полная лента освобождает место от старого отправленного снимка при «Готово»; если все неотправленные — некуда
+        if (!session.Model.CanMakeRoom)
         {
-            Toasts.Show($"В ленте максимум {SessionModel.MaxCaptures} снимков. Отправьте или удалите лишние");
+            StripFull?.Invoke(this, EventArgs.Empty);
             return;
         }
 
@@ -268,7 +275,8 @@ public sealed partial class CaptureController(SessionService session, Action hid
         var crop = Crop(window.Frame, region);
         var screenBounds = new RectI(window.Monitor.Bounds.X + region.X, window.Monitor.Bounds.Y + region.Y, region.Width, region.Height);
         Close();
-        session.AddCapture(crop, screenBounds, result.Annotations, result.SnapshotNote);
+        var id = session.AddCapture(crop, screenBounds, result.Annotations, result.SnapshotNote);
+        CaptureAdded?.Invoke(this, id);
     }
 
     // Отмена из окна (Esc до выделения, Alt+F4): если открыт редактор — как Esc в нём, с вопросом о правках

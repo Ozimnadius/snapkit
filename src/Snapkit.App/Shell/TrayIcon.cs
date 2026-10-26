@@ -6,12 +6,16 @@ namespace Snapkit.App.Shell;
 public sealed class TrayIcon : IDisposable
 {
     private readonly Forms.NotifyIcon _icon;
+    private readonly Forms.ToolStripMenuItem _showStrip;
 
     public TrayIcon()
     {
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("Новый снимок", null, (_, _) => NewCaptureRequested?.Invoke(this, EventArgs.Empty));
         menu.Items.Add("Показать ленту", null, (_, _) => ShowStripRequested?.Invoke(this, EventArgs.Empty));
+        _showStrip = new Forms.ToolStripMenuItem("Показывать ленту") { CheckOnClick = true };
+        _showStrip.Click += (_, _) => ShowStripToggled?.Invoke(this, _showStrip.Checked);
+        menu.Items.Add(_showStrip);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Выйти", null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
 
@@ -32,6 +36,15 @@ public sealed class TrayIcon : IDisposable
     public event EventHandler? ShowStripRequested;
     public event EventHandler? ToggleStripRequested;
     public event EventHandler? ExitRequested;
+
+    /// <summary>Галочка «Показывать ленту» в меню значка.</summary>
+    public event EventHandler<bool>? ShowStripToggled;
+
+    public bool ShowStripChecked
+    {
+        get => _showStrip.Checked;
+        set => _showStrip.Checked = value;
+    }
 
     public void Dispose()
     {

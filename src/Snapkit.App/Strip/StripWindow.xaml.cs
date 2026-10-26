@@ -60,6 +60,7 @@ public partial class StripWindow : Window
     public event EventHandler? SavePackageRequested;
     public event EventHandler? ImportFileRequested;
     public event EventHandler<string[]>? FilesDropped;
+    public event EventHandler<bool>? ShowStripToggled;
 
     private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -173,8 +174,12 @@ public partial class StripWindow : Window
         var topmost = new MenuItem { Header = "Поверх других окон", IsCheckable = true, IsChecked = ViewModel.IsTopmost };
         topmost.Click += (_, _) => TopmostToggled?.Invoke(this, topmost.IsChecked);
 
+        var showStrip = new MenuItem { Header = "Показывать ленту", IsCheckable = true, IsChecked = ViewModel.ShowStripSetting };
+        showStrip.Click += (_, _) => ShowStripToggled?.Invoke(this, showStrip.IsChecked);
+
         var menu = new ContextMenu { PlacementTarget = MoreButton, Placement = PlacementMode.Bottom };
         menu.Items.Add(topmost);
+        menu.Items.Add(showStrip);
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Импортировать файл…", ImportFileRequested));
         menu.Items.Add(Item("Вставить изображение из буфера", PasteImageRequested));

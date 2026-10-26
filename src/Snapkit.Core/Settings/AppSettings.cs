@@ -15,4 +15,6 @@ public sealed record AppSettings(
     // Свои цвета разметки через запятую, новые первыми, не больше 8
     string CustomColors = "",
     // Последняя папка «Сохранить снимок…» и «Сохранить пакет…»; пусто — «Изображения\Snapkit»
-    string LastSaveFolder = "");
+    string LastSaveFolder = "",
+    // Показывать ленту при запуске и после снимков; выключена — после снимка короткое уведомление
+    bool ShowStrip = true);
