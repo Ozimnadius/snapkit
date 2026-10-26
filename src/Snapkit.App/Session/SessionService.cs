@@ -11,7 +11,7 @@ using Snapkit.Core.Session;
 
 namespace Snapkit.App.Session;
 
-public enum SessionChangeKind { Added, Updated, Removed, Cleared, SentMarked, Reordered }
+public enum SessionChangeKind { Added, Updated, Removed, Cleared, SentMarked, Reordered, Restored }
 
 public sealed record SessionChange(SessionChangeKind Kind, Guid? CaptureId);
 
@@ -109,7 +109,7 @@ public sealed class SessionService(SessionStore store)
         // Картинка на диске могла быть уже убрана — пишем её заново
         Enqueue(() => store.WriteSourceImage(removed.Capture.Id, ImageCodecs.EncodePng(removed.Source)));
         Persist();
-        Raise(SessionChangeKind.Added, removed.Capture.Id);
+        Raise(SessionChangeKind.Restored, removed.Capture.Id);
         return true;
     }
 
@@ -124,15 +124,20 @@ public sealed class SessionService(SessionStore store)
     /// <summary>Запомнить пачку, которую вставляют по Ctrl+V (даже если вставку потом остановят).</summary>
     public void RememberPaste(IReadOnlyList<Guid> ids) => _lastPaste = ids.ToList();
 
-    public bool HasLastPaste => _lastPaste.Count > 0;
+    /// <summary>Есть что повторить: хотя бы один снимок последней вставки ещё в ленте.</summary>
+    public bool HasLastPaste => _lastPaste.Any(id => Model.Captures.Any(c => c.Id == id));
 
-    /// <summary>«Повторить последнюю вставку»: та пачка снова неотправленная, остальные — отправленные.</summary>
-    public void ResendLastPaste()
+    /// <summary>
+    /// «Повторить последнюю вставку»: та пачка снова неотправленная, остальные — отправленные.
+    /// false — снимков той вставки в ленте уже нет, отметки не меняются.
+    /// </summary>
+    public bool ResendLastPaste()
     {
-        if (!HasLastPaste) return;
+        if (!HasLastPaste) return false;
         Model.ResendOnly(_lastPaste.ToList());
         Persist();
         Raise(SessionChangeKind.SentMarked, null);
+        return true;
     }
 
     /// <summary>Перетащили карточку: поставить снимок перед карточкой с номером slot.</summary>
@@ -186,6 +191,7 @@ public sealed class SessionService(SessionStore store)
         Log.Info($"Лента очищена, снимков было {Model.Captures.Count}");
         Model.Clear();
         _sources.Clear();
+        _lastPaste = [];
         _latest = [];
         Enqueue(store.Clear);
         Raise(SessionChangeKind.Cleared, null);

@@ -44,6 +44,9 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
         _ => false,
     };
 
+    /// <summary>Последним в буфер положен пакет ленты (а не один снимок или черновик).</summary>
+    public bool IsStripPackage => _current is StripSource;
+
     /// <summary>План вставки для того, что скопировано последним (строится на момент вставки).</summary>
     public PastePlan CreatePastePlan() => _current switch
     {

@@ -100,12 +100,60 @@ public sealed class SessionServiceTests : IDisposable
     });
 
     [Fact]
+    public void ResendLastPaste_AllDeleted_ChangesNothing() => StaRunner.Run(() =>
+    {
+        // Снимков той вставки в ленте уже нет: нельзя молча отметить отправленной текущую пачку
+        var service = new SessionService(new SessionStore(_dir));
+        var a = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
+        var b = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
+        service.RememberPaste([a]);
+        service.Remove(a);
+
+        Assert.False(service.HasLastPaste);
+        Assert.False(service.ResendLastPaste());
+        Assert.False(service.Model.Captures.Single(x => x.Id == b).IsSent);
+        service.FlushAsync().Wait();
+    });
+
+    [Fact]
+    public void ClearAll_ForgetsLastPaste() => StaRunner.Run(() =>
+    {
+        var service = new SessionService(new SessionStore(_dir));
+        var a = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
+        service.RememberPaste([a]);
+        service.ClearAll();
+        var b = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
+
+        Assert.False(service.HasLastPaste);
+        Assert.False(service.ResendLastPaste());
+        Assert.False(service.Model.Captures.Single(x => x.Id == b).IsSent);
+        service.FlushAsync().Wait();
+    });
+
+    [Fact]
+    public void Restore_RaisesRestored() => StaRunner.Run(() =>
+    {
+        var service = new SessionService(new SessionStore(_dir));
+        var a = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
+        var removed = service.Remove(a)!;
+        var changes = new List<SessionChange>();
+        service.Changed += (_, change) => changes.Add(change);
+
+        service.Restore(removed);
+        service.FlushAsync().Wait();
+
+        Assert.Equal(new SessionChange(SessionChangeKind.Restored, a), Assert.Single(changes));
+    });
+
+    [Fact]
     public void HasLastPaste_FalseUntilRemembered() => StaRunner.Run(() =>
     {
         var service = new SessionService(new SessionStore(_dir));
         Assert.False(service.HasLastPaste);
-        service.RememberPaste([Guid.NewGuid()]);
+        var a = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
+        service.RememberPaste([a]);
         Assert.True(service.HasLastPaste);
+        service.FlushAsync().Wait();
     });
 
     [Fact]

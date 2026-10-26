@@ -240,7 +240,11 @@ public partial class App : Application
         };
         _strip.ResendLastRequested += (_, _) =>
         {
-            _session.ResendLastPaste();
+            if (!_session.ResendLastPaste())
+            {
+                Toasts.Show("Снимков последней вставки в ленте уже нет");
+                return;
+            }
             PublishPackageIfUnsent();
         };
         _strip.ResendAllRequested += (_, _) =>
@@ -495,14 +499,9 @@ public partial class App : Application
     /// </summary>
     private void OnSessionChangedForClipboard(SessionChange change)
     {
-        var republish = change.Kind switch
-        {
-            SessionChangeKind.Added or SessionChangeKind.Updated => change.CaptureId is not null,
-            // Удаление и новый порядок меняют буквы — пакет в буфере обновляется, если он наш
-            SessionChangeKind.Removed or SessionChangeKind.Reordered => IsPackageCurrent(),
-            _ => false,
-        };
-        if (republish && _session.Model.UnsentCount > 0) RunClipboard(_publisher.PublishPackageAsync);
+        var republish = ClipboardRepublish.After(change.Kind, change.CaptureId is not null, _session.Model.UnsentCount > 0,
+            stripPackageInClipboard: IsPackageCurrent() && _publisher.IsStripPackage);
+        if (republish) RunClipboard(_publisher.PublishPackageAsync);
     }
 
     /// <summary>Пачку поменяли с ленты — пакет снова в буфер, и следующий Ctrl+V в любом окне вставит её.</summary>
