@@ -94,7 +94,7 @@ public sealed class ClipboardServiceTests : IDisposable
 
         var afterKeys = _host.Service.ExpectRender(targetPid: 1, TimeSpan.FromSeconds(2));
         Publish(new ClipboardPayload(Png, null, null));
-        _host.Service.PasteKeysSent();
+        _host.Service.PasteKeysSending();
         _foreign.ReadAnonymously(ForeignClipboard.Format("PNG"));
         Assert.True(await afterKeys);
     }

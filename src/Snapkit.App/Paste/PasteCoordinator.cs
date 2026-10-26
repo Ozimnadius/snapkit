@@ -79,8 +79,8 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
                 var taken = clipboard.ExpectRender(targetPid, ConfirmTimeoutFor(earlierStepUnconfirmed: !verified));
                 await clipboard.PublishAsync(step, ClipboardKind.PasteStep, excludeFromHistory: true);
                 router.Resync();
+                clipboard.PasteKeysSending();
                 _send(PasteKeys.CtrlV(router.Logical));
-                clipboard.PasteKeysSent();
                 var confirmed = await taken;
                 verified &= confirmed;
                 if (step.Png is not null) images++;

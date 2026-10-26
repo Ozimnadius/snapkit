@@ -36,7 +36,7 @@ public sealed partial class ClipboardService : IDisposable
     // Читается с потока хука клавиатуры
     private volatile int _kind;
     private (int Pid, TaskCompletionSource<bool> Done)? _expected;
-    private volatile bool _pasteKeysSent;
+    private volatile bool _pasteKeysSending;
     private long _publishedAt;
 
     public ClipboardService()
@@ -106,7 +106,7 @@ public sealed partial class ClipboardService : IDisposable
     {
         var done = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (_expectGate) _expected = (targetPid, done);
-        _pasteKeysSent = false;
+        _pasteKeysSending = false;
         _ = Task.Delay(timeout).ContinueWith(_ =>
         {
             var expired = false;
@@ -125,10 +125,12 @@ public sealed partial class ClipboardService : IDisposable
     }
 
     /// <summary>
-    /// Программный Ctrl+V для текущего шага отправлен. После этого чтение буфера без окна
-    /// (так читает Chrome) считается чтением получателя.
+    /// Сейчас уйдёт программный Ctrl+V для текущего шага; вызывать после PublishAsync, до SendInput.
+    /// С этого момента чтение буфера без окна (так читает Chrome) считается чтением получателя.
+    /// Chrome забирает текст, пока SendInput ещё не вернулся: SendInput ждёт наш перехват клавиатуры,
+    /// а поток тем временем обрабатывает запросы данных.
     /// </summary>
-    public void PasteKeysSent() => _pasteKeysSent = true;
+    public void PasteKeysSending() => _pasteKeysSending = true;
 
     public void Dispose()
     {
@@ -185,9 +187,10 @@ public sealed partial class ClipboardService : IDisposable
         var opener = GetOpenClipboardWindow();
         var pid = 0u;
         if (opener != 0) GetWindowThreadProcessId(opener, out pid);
-        // Буфер открыт без окна (так читает Chrome): читателя не узнать, но если Ctrl+V уже отправлен —
-        // это получатель; менеджеры буфера читают сразу после изменения, ещё до нажатия
-        var anonymousAfterKeys = opener == 0 && _pasteKeysSent;
+        // Буфер открыт без окна (так читает Chrome): читателя не узнать, но если Ctrl+V уже нажимается —
+        // это получатель. До нажатия так может читать только кто-то другой, например старое содержимое
+        // буфера, пока PublishAsync ждёт, когда буфер освободится
+        var anonymousAfterKeys = opener == 0 && _pasteKeysSending;
         if (!anonymousAfterKeys && !ProcessTree.IsSameOrDescendant((int)pid, expectedPid)) return;
 
         TaskCompletionSource<bool>? done = null;
@@ -214,7 +217,7 @@ public sealed partial class ClipboardService : IDisposable
         var name = format == _pngFormat ? "PNG" : format == CF_DIB ? "DIB" : format == CF_UNICODETEXT ? "текст" : format.ToString();
         var reader = opener == 0 ? "без окна" : $"{ProcessTree.NameOf((int)pid)} ({pid})";
         var ms = (int)Stopwatch.GetElapsedTime(_publishedAt).TotalMilliseconds;
-        var keys = _pasteKeysSent ? "Ctrl+V отправлен" : "Ctrl+V ещё не отправлен";
+        var keys = _pasteKeysSending ? "Ctrl+V нажат" : "Ctrl+V ещё не нажат";
         var waiting = expectedPid is { } p ? $"ждём {ProcessTree.NameOf(p)} ({p})" : "ожидание уже закончилось";
         Log.Info($"Чтение буфера при вставке: {name}, читает {reader}, через {ms} мс, {keys}, {waiting}");
     }

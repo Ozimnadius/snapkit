@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.IO;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Snapkit.App.Clipboarding;
 using Snapkit.App.Paste;
 using Snapkit.App.Session;
@@ -48,4 +50,36 @@ public class PasteCoordinatorTests
     [InlineData(PasteStatus.ClipboardBusy, 0, 0, "Буфер обмена занят другой программой. Повторите вставку")]
     public void Describe_GivesRussianMessage(PasteStatus status, int images, int notes, string expected)
         => Assert.Equal(expected, PasteCoordinator.Describe(new PasteOutcome(status, images, notes)));
+}
+
+/// <summary>Вставка через настоящий буфер обмена — при сборке не запускается.</summary>
+[Trait("Category", "Clipboard")]
+[Collection("Clipboard")]
+public class PasteCoordinatorClipboardTests
+{
+    [Fact]
+    public void AnonymousReadWhileCtrlVIsBeingSent_ConfirmsStep()
+    {
+        // Chrome читает буфер без своего окна и так быстро, что запрос данных приходит,
+        // пока SendInput ещё не вернулся: поток в это время обрабатывает входящие сообщения
+        var dir = Path.Combine(Path.GetTempPath(), "snapkit-tests-" + Guid.NewGuid());
+        using var host = new ClipboardTestHost();
+        using var reader = new ForeignClipboard();
+        var image = BitmapSource.Create(4, 4, 96, 96, PixelFormats.Bgra32, null, new byte[4 * 4 * 4], 4 * 4);
+        image.Freeze();
+        var plan = new PastePlan([image], "A1 — проверка", [], NotesCount: 1, FromStrip: false);
+
+        PasteOutcome? outcome = null;
+        host.Run(async () =>
+        {
+            var paste = new PasteCoordinator(new SessionService(new SessionStore(dir)), host.Service, new KeyRouter(() => default),
+                () => plan, () => false,
+                send: _ => reader.ReadAnonymously(reader.HasFormat("PNG")
+                    ? ForeignClipboard.Format("PNG")
+                    : ForeignClipboard.CF_UNICODETEXT));
+            outcome = await paste.PasteBatchAsync();
+        });
+
+        Assert.Equal(new PasteOutcome(PasteStatus.CompletedVerified, 1, 1), outcome);
+    }
 }
