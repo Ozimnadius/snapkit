@@ -125,4 +125,36 @@ public class PasteCoordinatorClipboardTests
         });
         Assert.Equal([(a, false), (b, false), (c, true)], session.Model.Captures.Select(x => (x.Id, x.IsSent)));
     }
+
+    [Fact]
+    public void TextNotTakenFirstTime_IsPastedAgainOnce()
+    {
+        // Telegram после картинки открывает окно с подписью: первый Ctrl+V с текстом приходит,
+        // пока поле ещё не готово, и теряется — Snapkit нажимает Ctrl+V ещё раз
+        var dir = Path.Combine(Path.GetTempPath(), "snapkit-tests-" + Guid.NewGuid());
+        using var host = new ClipboardTestHost();
+        using var reader = new ForeignClipboard();
+        var image = BitmapSource.Create(4, 4, 96, 96, PixelFormats.Bgra32, null, new byte[4 * 4 * 4], 4 * 4);
+        image.Freeze();
+        var plan = new PastePlan([image], "A1 — проверка", [], NotesCount: 1, FromStrip: false);
+        var presses = 0;
+        PasteOutcome? outcome = null;
+        host.Run(async () =>
+        {
+            var paste = new PasteCoordinator(new SessionService(new SessionStore(dir)), host.Service, new KeyRouter(() => default),
+                () => plan, () => false,
+                send: strokes =>
+                {
+                    // Считаем только Ctrl+V; в конце вставки тем же путём возвращаются модификаторы
+                    if (!strokes.Any(k => k.Vk == 0x56 && !k.Up)) return;
+                    presses++;
+                    if (presses == 1) reader.ReadAnonymously(ForeignClipboard.Format("PNG"));
+                    if (presses == 3) reader.ReadAnonymously(ForeignClipboard.CF_UNICODETEXT);
+                });
+            outcome = await paste.PasteBatchAsync();
+        });
+
+        Assert.Contains(outcome?.Status, new PasteStatus?[] { PasteStatus.CompletedVerified, PasteStatus.StoppedTargetChanged });
+        if (outcome?.Status == PasteStatus.CompletedVerified) Assert.Equal(3, presses);
+    }
 }

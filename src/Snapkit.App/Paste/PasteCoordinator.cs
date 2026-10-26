@@ -30,6 +30,8 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
     // проходит, в Chrome ещё не проверялась.
     private static readonly TimeSpan ConfirmTimeout = TimeSpan.FromMilliseconds(1500);
     private static readonly TimeSpan ShortConfirmTimeout = TimeSpan.FromMilliseconds(300);
+    // Текст чаты забирают за миллисекунды; не забрали за это время — Ctrl+V, скорее всего, потерялся
+    private static readonly TimeSpan TextFirstTimeout = TimeSpan.FromMilliseconds(600);
     private static readonly TimeSpan VerifiedPause = TimeSpan.FromMilliseconds(120);
     private static readonly TimeSpan UnverifiedPause = TimeSpan.FromMilliseconds(400);
     private static readonly TimeSpan KeyReleaseWait = TimeSpan.FromSeconds(1);
@@ -78,12 +80,27 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
                 if (Foreground.Current != target) return new PasteOutcome(PasteStatus.StoppedTargetChanged, images, notes);
                 if (router.EscapePressedDuringPaste) return new PasteOutcome(PasteStatus.StoppedByUser, images, notes);
 
-                var taken = clipboard.ExpectRender(targetPid, ConfirmTimeoutFor(earlierStepUnconfirmed: !verified));
+                var isText = step.Png is null;
+                var taken = clipboard.ExpectRender(targetPid,
+                    isText && verified ? TextFirstTimeout : ConfirmTimeoutFor(earlierStepUnconfirmed: !verified));
                 await clipboard.PublishAsync(step, ClipboardKind.PasteStep, excludeFromHistory: true);
                 router.Resync();
                 clipboard.PasteKeysSending();
                 _send(PasteKeys.CtrlV(router.Logical));
                 var confirmed = await taken;
+                // Telegram после картинки открывает окно с подписью: первый Ctrl+V с текстом приходит,
+                // пока поле ещё не готово, и теряется. Текст точно не прочитан — нажимаем Ctrl+V ещё раз
+                if (!confirmed && isText)
+                {
+                    if (Foreground.Current != target) return new PasteOutcome(PasteStatus.StoppedTargetChanged, images, notes);
+                    if (router.EscapePressedDuringPaste) return new PasteOutcome(PasteStatus.StoppedByUser, images, notes);
+                    Log.Info("Текст не забран — повторяю Ctrl+V");
+                    taken = clipboard.ExpectRender(targetPid, ConfirmTimeout);
+                    router.Resync();
+                    clipboard.PasteKeysSending();
+                    _send(PasteKeys.CtrlV(router.Logical));
+                    confirmed = await taken;
+                }
                 verified &= confirmed;
                 if (step.Png is not null) images++;
                 await Task.Delay(confirmed ? VerifiedPause : UnverifiedPause);
