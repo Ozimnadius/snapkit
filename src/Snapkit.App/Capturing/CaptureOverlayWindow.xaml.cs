@@ -51,12 +51,13 @@ public partial class CaptureOverlayWindow : Window
             HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(KeepBoundsOnDpiChange);
             PlaceOnMonitor();
         };
-        // Закрыть окно в обход программы (Alt+F4) — значит отменить снимок
+        // Закрыть окно в обход программы (Alt+F4) — значит отменить снимок. Сообщаем об отмене
+        // после выхода из Closing: пока окно закрывается, WPF не даёт закрыть его из обработчика
         Closing += (_, e) =>
         {
             if (_closeAllowed) return;
             e.Cancel = true;
-            Cancelled?.Invoke(this, EventArgs.Empty);
+            Dispatcher.BeginInvoke(() => Cancelled?.Invoke(this, EventArgs.Empty));
         };
         Loaded += (_, _) => Redraw();
 

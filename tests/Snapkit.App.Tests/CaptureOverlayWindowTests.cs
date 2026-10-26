@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Snapkit.App.Capturing;
 using Snapkit.Core;
 
@@ -48,6 +49,7 @@ public partial class CaptureOverlayWindowTests
         window.Show();
 
         window.Close();
+        DoEvents();
         var stillOpen = window.IsVisible;
         window.AllowClose();
         window.Close();
@@ -55,6 +57,28 @@ public partial class CaptureOverlayWindowTests
         Assert.True(cancelled);
         Assert.True(stillOpen);
     });
+
+    [Fact]
+    public void CloseFromOutside_CancelHandlerMayCloseWindow() => StaRunner.Run(() =>
+    {
+        // Так отменяет снимок CaptureController: в ответ на отмену сразу закрывает все окна.
+        // Закрывать окно, пока WPF ещё внутри его Closing, нельзя — было исключение
+        var window = CreateWindow();
+        window.Cancelled += (_, _) =>
+        {
+            window.AllowClose();
+            window.Close();
+        };
+        window.Show();
+
+        window.Close();
+        DoEvents();
+
+        Assert.False(window.IsVisible);
+    });
+
+    // Выполнить отложенные действия окна (Dispatcher.BeginInvoke)
+    private static void DoEvents() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Background);
 
     private const uint WM_DPICHANGED = 0x02E0;
 

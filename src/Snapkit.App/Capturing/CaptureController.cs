@@ -230,6 +230,8 @@ public sealed partial class CaptureController(SessionService session, Action hid
     // Отмена из окна (Esc до выделения, Alt+F4): если открыт редактор — как Esc в нём, с вопросом о правках
     private void Cancel()
     {
+        // Отмена от Alt+F4 приходит с задержкой — снимок к этому времени мог уже закрыться
+        if (!IsOpen) return;
         if (_editor is { } editor) editor.RequestCancel();
         else Close();
     }
