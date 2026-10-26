@@ -42,6 +42,9 @@ public partial class App : Application
     private SessionService _session = null!;
     private StripViewModel _stripModel = null!;
     private StripWindow _strip = null!;
+    private CapsuleWindow _capsule = null!;
+    // Что сейчас на экране: развёрнутая лента, капсула или ничего
+    private StripView _view = StripView.Hidden;
     private TrayIcon? _tray;
     private CaptureController _capture = null!;
     private ClipboardService? _clipboard;
@@ -53,6 +56,7 @@ public partial class App : Application
     private volatile bool _hasPasteContent;
     private bool _clearOnExit;
     private bool _stripWasVisible;
+    private bool _capsuleWasVisible;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -117,6 +121,10 @@ public partial class App : Application
         _strip = new StripWindow(_stripModel);
         // Окно ленты закрывают только в обход программы (Диспетчер задач, Alt+F4) — для разбора сбоев
         _strip.Closed += (_, _) => Log.Info("Окно ленты закрыто");
+        _capsule = new CapsuleWindow(_stripModel);
+        _capsule.NewCaptureRequested += (_, _) => StartNewCapture();
+        _capsule.ExpandRequested += (_, _) => ApplyStripView(StripView.Strip);
+        _capsule.Moved += (_, _) => SaveSettings(_settings with { CapsuleLeft = _capsule.Left, CapsuleTop = _capsule.Top });
         _capture = new CaptureController(_session, HideChrome, RestoreChrome)
         {
             CopyDraft = async (source, annotations, note) =>
@@ -151,7 +159,7 @@ public partial class App : Application
         UpdatePasteState();
         RefreshStrip();
         PlaceStrip();
-        if (_settings.ShowStrip) _strip.Show();
+        ApplyStripView(StripPresence.OnStartup(_settings.ShowStrip, _settings.StripCollapsed));
 
         if (settingsWereReset) Toasts.Show("Файл настроек не читался, настройки созданы заново");
         // После установки новой версии лента тоже читается с диска, но это не сбой
@@ -239,13 +247,15 @@ public partial class App : Application
         {
             if (!ConfirmClear()) return;
             _session.ClearAll();
-            _strip.Hide();
+            ApplyStripView(StripView.Hidden);
+            if (_settings.StripCollapsed) SaveSettings(_settings with { StripCollapsed = false });
         };
         _strip.PasteImageRequested += (_, _) => ImportImageFromClipboard();
         _strip.CopyPackageRequested += (_, _) => RunClipboard(_publisher.CopyPackageCommandAsync);
         _strip.CopyCaptureRequested += (_, id) => RunClipboard(() => _publisher.CopyCaptureAsync(id));
         _strip.ExitRequested += (_, _) => ExitApp();
         _strip.ShowStripToggled += (_, show) => SetShowStrip(show);
+        _strip.MinimizeRequested += (_, _) => ApplyStripView(StripPresence.OnMinimize(_settings.ShowStrip));
         _strip.ReorderRequested += (_, drop) => _session.MoveBefore(drop.Id, drop.Slot);
         _strip.DragFileFor = DragFileFor;
         _strip.SaveCaptureRequested += (_, id) => SaveCapture(id);
@@ -276,7 +286,8 @@ public partial class App : Application
         _tray.ShowStripRequested += (_, _) => ShowStrip();
         _tray.ToggleStripRequested += (_, _) =>
         {
-            if (_strip.IsVisible) _strip.Hide();
+            // Щелчок у часов показывает или прячет развёрнутую ленту; настройку не меняет
+            if (_strip.IsVisible) ApplyStripView(StripView.Hidden);
             else ShowStrip();
         };
         _tray.ExitRequested += (_, _) => ExitApp();
@@ -287,18 +298,61 @@ public partial class App : Application
     private void StartNewCapture() => _capture.StartNewCapture();
 
     /// <summary>
-    /// Новый снимок: лента включена — она появляется, даже если её свернули; выключена —
-    /// короткое уведомление, что снимок в пачке.
+    /// Новый снимок: лента включена — закрытая лента появляется, капсула остаётся капсулой;
+    /// выключена — короткое уведомление, что снимок в пачке.
     /// </summary>
     private void OnCaptureAdded(Guid id)
     {
-        if (_settings.ShowStrip)
-        {
-            if (!_strip.IsVisible) _strip.Show();
-            return;
-        }
+        ApplyStripView(StripPresence.AfterNewCapture(_view, _settings.ShowStrip));
+        if (_settings.ShowStrip) return;
         if (CaptureLetters.Assign(_session.Model.Captures).TryGetValue(id, out var letter))
             Toasts.Show(CaptureFeedback.Ready(letter));
+    }
+
+    /// <summary>
+    /// Единственное место, которое показывает и прячет ленту и капсулу. Свёрнута лента или нет,
+    /// запоминается, только когда на экране лента или капсула: выключение ленты его не сбрасывает.
+    /// </summary>
+    private void ApplyStripView(StripView view)
+    {
+        _view = view;
+        switch (view)
+        {
+            case StripView.Hidden:
+                _strip.Hide();
+                _capsule.Hide();
+                return;
+            case StripView.Strip:
+                _capsule.Hide();
+                if (!_strip.IsVisible) _strip.Show();
+                break;
+            case StripView.Capsule:
+                _strip.Hide();
+                if (!_capsule.IsVisible)
+                {
+                    _capsule.Show();
+                    PlaceCapsule();
+                }
+                break;
+        }
+        var collapsed = view == StripView.Capsule;
+        if (_settings.StripCollapsed != collapsed) SaveSettings(_settings with { StripCollapsed = collapsed });
+    }
+
+    /// <summary>Капсула — где её оставили, иначе у правого края рабочей области на высоте ленты.</summary>
+    private void PlaceCapsule()
+    {
+        var screen = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+            SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+        if (_settings is { CapsuleLeft: { } left, CapsuleTop: { } top } && screen.Contains(new Point(left + 20, top + 20)))
+        {
+            _capsule.Left = left;
+            _capsule.Top = top;
+            return;
+        }
+        var area = SystemParameters.WorkArea;
+        _capsule.Left = area.Right - _capsule.ActualWidth - StripEdgeMargin;
+        _capsule.Top = _strip.Top;
     }
 
     /// <summary>Галочка «Показывать ленту» (меню значка у часов или «…» ленты): сразу показать или спрятать.</summary>
@@ -307,14 +361,7 @@ public partial class App : Application
         SaveSettings(_settings with { ShowStrip = show });
         _stripModel.ShowStripSetting = show;
         if (_tray is not null) _tray.ShowStripChecked = show;
-        if (show)
-        {
-            if (!_strip.IsVisible) _strip.Show();
-        }
-        else
-        {
-            _strip.Hide();
-        }
+        ApplyStripView(StripPresence.OnShowStripChanged(show, _settings.StripCollapsed));
     }
 
     private static readonly string DragDirectory = Path.Combine(DataDirectory, "drag");
@@ -518,18 +565,21 @@ public partial class App : Application
     private void HideChrome()
     {
         _stripWasVisible = _strip.IsVisible;
+        _capsuleWasVisible = _capsule.IsVisible;
         if (_stripWasVisible) _strip.Hide();
+        if (_capsuleWasVisible) _capsule.Hide();
         Toasts.HideNow();
     }
 
     private void RestoreChrome()
     {
         if (_stripWasVisible) _strip.Show();
+        if (_capsuleWasVisible) _capsule.Show();
     }
 
     private void ShowStrip()
     {
-        if (!_strip.IsVisible) _strip.Show();
+        ApplyStripView(StripView.Strip);
         _strip.Activate();
     }
 

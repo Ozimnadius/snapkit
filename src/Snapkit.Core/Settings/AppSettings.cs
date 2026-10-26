@@ -17,4 +17,8 @@ public sealed record AppSettings(
     // Последняя папка «Сохранить снимок…» и «Сохранить пакет…»; пусто — «Изображения\Snapkit»
     string LastSaveFolder = "",
     // Показывать ленту при запуске и после снимков; выключена — после снимка короткое уведомление
-    bool ShowStrip = true);
+    bool ShowStrip = true,
+    // Лента свёрнута в капсулу — и после перезапуска появится капсулой; где стоит капсула
+    bool StripCollapsed = false,
+    double? CapsuleLeft = null,
+    double? CapsuleTop = null);

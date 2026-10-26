@@ -85,6 +85,15 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_OldSettingsWithoutCollapsed_IsExpanded()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(FilePath, """{ "showStrip": true, "lastSaveFolder": "" }""");
+        var settings = new SettingsStore(FilePath).Load().Settings;
+        Assert.Equal((false, (double?)null, (double?)null), (settings.StripCollapsed, settings.CapsuleLeft, settings.CapsuleTop));
+    }
+
+    [Fact]
     public void SaveThenLoad_RoundTrips()
     {
         var saved = new AppSettings(LaunchAtStartup: false, ClearStripAfterPaste: true, StripLeft: 100.5, StripTop: 42,

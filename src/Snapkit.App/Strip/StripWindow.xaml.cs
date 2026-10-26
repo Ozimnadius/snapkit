@@ -61,6 +61,7 @@ public partial class StripWindow : Window
     public event EventHandler? ImportFileRequested;
     public event EventHandler<string[]>? FilesDropped;
     public event EventHandler<bool>? ShowStripToggled;
+    public event EventHandler? MinimizeRequested;
 
     private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -73,7 +74,7 @@ public partial class StripWindow : Window
 
     private void Clear_Click(object sender, RoutedEventArgs e) => ClearRequested?.Invoke(this, EventArgs.Empty);
 
-    private void Minimize_Click(object sender, RoutedEventArgs e) => Hide();
+    private void Minimize_Click(object sender, RoutedEventArgs e) => MinimizeRequested?.Invoke(this, EventArgs.Empty);
 
     private void Close_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke(this, EventArgs.Empty);
 
