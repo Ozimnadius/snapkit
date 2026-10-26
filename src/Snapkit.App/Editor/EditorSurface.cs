@@ -768,6 +768,9 @@ public sealed class EditorSurface : UserControl
         return left;
     }
 
+    /// <summary>Левый край панели комментариев: она всегда справа (так удобнее пользователю).</summary>
+    internal static double CommentsLeft(double workRight, double panelWidth) => workRight - panelWidth - PanelGap;
+
     /// <summary>
     /// Ширина панели комментариев (в единицах WPF): 300, а на узком экране — сколько остаётся рядом
     /// с панелью инструментов (ноутбук 1920×1080 при масштабе 175 %), но не меньше 200.
@@ -792,14 +795,11 @@ public sealed class EditorSurface : UserControl
         _toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var size = _toolbar.DesiredSize;
 
-        // Панель комментариев — у края рабочей области, с той стороны, где меньше снимка
+        // Панель комментариев — всегда у правого края рабочей области
         _comments.Width = CommentsWidth(Width, size.Width);
-        var workLeft = _context.WorkArea.X / Scale;
         var workTop = _context.WorkArea.Y / Scale;
         var workRight = (_context.WorkArea.X + _context.WorkArea.Width) / Scale;
-        var regionCenter = left + _region.Width / Scale / 2;
-        var panelOnRight = regionCenter < (workLeft + workRight) / 2;
-        var panelLeft = panelOnRight ? workRight - _comments.Width - PanelGap : workLeft + PanelGap;
+        var panelLeft = CommentsLeft(workRight, _comments.Width);
         _comments.Height = Math.Max(200, WorkBottom - workTop - 2 * PanelGap);
         Canvas.SetLeft(_comments, panelLeft);
         Canvas.SetTop(_comments, workTop + PanelGap);

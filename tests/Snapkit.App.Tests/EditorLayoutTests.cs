@@ -107,4 +107,11 @@ public class EditorLayoutTests
         var top = EditorSurface.ToolbarTop(regionTop: -460, regionBottom: 1540, Bar, WorkTop, WorkBottom);
         Assert.InRange(top, WorkTop, WorkBottom - Bar);
     }
+
+    [Theory]
+    [InlineData(1920)]
+    [InlineData(0)]   // монитор слева от основного
+    public void CommentsPanel_IsAlwaysOnTheRight(double workRight)
+        // Пользователь попросил: панель комментариев — справа, где бы ни был снимок
+        => Assert.Equal(workRight - PanelWidth - Gap, EditorSurface.CommentsLeft(workRight, PanelWidth));
 }
