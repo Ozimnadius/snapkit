@@ -89,6 +89,29 @@ public class CaptureRendererTests
     });
 
     [Fact]
+    public void Blur_InFinalImage_HidesStripesUpToEdges() => StaRunner.Run(() =>
+    {
+        const int w = 120, h = 60;
+        var pixels = new byte[w * h * 4];
+        for (var y = 0; y < h; y++)
+        for (var x = 0; x < w; x++)
+        {
+            var v = (byte)(x / 2 % 2 == 0 ? 0 : 255);
+            var i = (y * w + x) * 4;
+            (pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]) = (v, v, v, 255);
+        }
+        var source = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, pixels, w * 4);
+        source.Freeze();
+        var blur = new Annotation(Guid.NewGuid(), AnnotationKind.Blur, [new(21, 11), new(98, 47)], "#E53935", 4, null, null);
+
+        var result = CaptureRenderer.Render(source, CaptureWith(w, h, blur), 'A');
+
+        // Каждый пиксель внутри рамки, включая крайние ряды, — без следа полос
+        var inside = (from y in Enumerable.Range(11, 36) from x in Enumerable.Range(21, 77) select PixelAt(result, x, y).R).ToList();
+        Assert.True(inside.Max() - inside.Min() < 60, $"разброс под размытием {inside.Max() - inside.Min()}");
+    });
+
+    [Fact]
     public void RenderThumbnail_FitsMaxWidth() => StaRunner.Run(() =>
     {
         var thumb = CaptureRenderer.RenderThumbnail(Gray(400, 200), CaptureWith(400, 200), 'A', 200);

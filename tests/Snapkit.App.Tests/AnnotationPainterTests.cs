@@ -117,4 +117,17 @@ public class AnnotationPainterTests
         Assert.NotNull(first);
         Assert.Same(first, ObscuredImages.Get(source, new RectI(5, 5, 20, 20)));
     });
+
+    [Fact]
+    public void ObscuredImages_LargeArea_KeepsSmallBitmap() => StaRunner.Run(() =>
+    {
+        // Пока тянут рамку размытия, каждая новая область попадает в кэш: копия во весь размер
+        // области (здесь почти 4 МБ) на каждый кадр — это рывки и сотни мегабайт памяти
+        var image = BitmapSource.Create(1200, 800, 96, 96, PixelFormats.Bgra32, null, new byte[1200 * 800 * 4], 1200 * 4);
+        image.Freeze();
+        var obscured = ObscuredImages.Get(new BlurSource(image, new PointD(0, 0)), new RectI(0, 0, 1200, 800));
+        Assert.NotNull(obscured);
+        Assert.True(obscured.PixelWidth * obscured.PixelHeight <= 1200 * 800 / 100,
+            $"размытая копия {obscured.PixelWidth}×{obscured.PixelHeight}");
+    });
 }

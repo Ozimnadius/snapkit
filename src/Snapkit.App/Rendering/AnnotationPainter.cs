@@ -129,15 +129,7 @@ public static class AnnotationPainter
             dc.DrawRectangle(NoSourceBlur, null, rect);
             return;
         }
-        var area = new RectI(
-            (int)Math.Floor(rect.X - source.Origin.X), (int)Math.Floor(rect.Y - source.Origin.Y),
-            (int)Math.Ceiling(rect.Width) + 1, (int)Math.Ceiling(rect.Height) + 1);
-        var x0 = Math.Max(0, area.X);
-        var y0 = Math.Max(0, area.Y);
-        if (ObscuredImages.Get(source, area) is not { } obscured) return;
-        dc.PushClip(new RectangleGeometry(rect));
-        dc.DrawImage(obscured, new Rect(x0 + source.Origin.X, y0 + source.Origin.Y, obscured.PixelWidth, obscured.PixelHeight));
-        dc.Pop();
+        ObscuredImages.Draw(dc, source, rect);
     }
 
     /// <summary>Стрелка по ломаной: линия до основания наконечника, затем залитый наконечник.</summary>
