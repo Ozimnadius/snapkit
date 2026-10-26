@@ -94,14 +94,6 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
-    public void Load_OldSettingsWithoutPlaySounds_PlaysSounds()
-    {
-        Directory.CreateDirectory(_dir);
-        File.WriteAllText(FilePath, """{ "showStrip": false }""");
-        Assert.True(new SettingsStore(FilePath).Load().Settings.PlaySounds);
-    }
-
-    [Fact]
     public void SaveThenLoad_RoundTrips()
     {
         var saved = new AppSettings(LaunchAtStartup: false, ClearStripAfterPaste: true, StripLeft: 100.5, StripTop: 42,

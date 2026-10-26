@@ -480,6 +480,9 @@ public event EventHandler? MinimizeRequested;     // вместо прямого
 
 ### Задача 10: Звуки
 
+> **Отменено 26.10:** пользователь попросил убрать звуки; оба коммита задачи откачены
+> (`revert(sound)`).
+
 **Файлы:**
 - Создать: `src/Snapkit.Core/Sounds/SoundSynth.cs`, `src/Snapkit.App/Notifications/Sounds.cs`
 - Изменить: `src/Snapkit.Core/Settings/AppSettings.cs`, `src/Snapkit.App/Shell/TrayIcon.cs`,

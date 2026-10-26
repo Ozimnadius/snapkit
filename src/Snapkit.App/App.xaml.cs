@@ -20,7 +20,6 @@ using Snapkit.Core;
 using Snapkit.Core.Input;
 using Snapkit.Core.Session;
 using Snapkit.Core.Settings;
-using Snapkit.Core.Sounds;
 using Forms = System.Windows.Forms;
 
 namespace Snapkit.App;
@@ -97,8 +96,6 @@ public partial class App : Application
             settingsWereReset = true;
         }
         Toasts.Enabled = _settings.ShowNotifications;
-        Sounds.Enabled = _settings.PlaySounds;
-        Sounds.Directory = Path.Combine(DataDirectory, "sounds");
         ApplyAutoStart();
 
         _session = new SessionService(new SessionStore(Path.Combine(DataDirectory, "session")));
@@ -138,12 +135,7 @@ public partial class App : Application
             CustomColors = () => _settings.CustomColors,
             SaveCustomColors = colors => SaveSettings(_settings with { CustomColors = colors }),
         };
-        _capture.CaptureAdded += (_, id) =>
-        {
-            Sounds.Play(SoundKind.Tick);
-            OnCaptureAdded(id);
-        };
-        _capture.ScreenCaptured += (_, _) => Sounds.Play(SoundKind.Shutter);
+        _capture.CaptureAdded += (_, id) => OnCaptureAdded(id);
         _capture.StripFull += (_, _) =>
         {
             Toasts.Show(CaptureFeedback.StripFull);
@@ -305,12 +297,6 @@ public partial class App : Application
         _tray.ExitRequested += (_, _) => ExitApp();
         _tray.ShowStripChecked = _settings.ShowStrip;
         _tray.ShowStripToggled += (_, show) => SetShowStrip(show);
-        _tray.SoundsChecked = _settings.PlaySounds;
-        _tray.SoundsToggled += (_, play) =>
-        {
-            Sounds.Enabled = play;
-            SaveSettings(_settings with { PlaySounds = play });
-        };
     }
 
     private void StartNewCapture() => _capture.StartNewCapture();
@@ -562,11 +548,7 @@ public partial class App : Application
             Log.Info($"Вставка пачки: {outcome}");
             var message = PasteCoordinator.Describe(outcome);
             if (message.Length == 0) return;
-            if (outcome.Status is PasteStatus.CompletedVerified or PasteStatus.CompletedUnverified)
-            {
-                Sounds.Play(SoundKind.Chime);
-                Toasts.Show(message);
-            }
+            if (outcome.Status is PasteStatus.CompletedVerified or PasteStatus.CompletedUnverified) Toasts.Show(message);
             else Toasts.Error(message);
         }
         catch (Exception ex)

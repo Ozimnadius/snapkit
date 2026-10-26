@@ -7,7 +7,6 @@ public sealed class TrayIcon : IDisposable
 {
     private readonly Forms.NotifyIcon _icon;
     private readonly Forms.ToolStripMenuItem _showStrip;
-    private readonly Forms.ToolStripMenuItem _sounds;
 
     public TrayIcon()
     {
@@ -17,9 +16,6 @@ public sealed class TrayIcon : IDisposable
         _showStrip = new Forms.ToolStripMenuItem("Показывать ленту") { CheckOnClick = true };
         _showStrip.Click += (_, _) => ShowStripToggled?.Invoke(this, _showStrip.Checked);
         menu.Items.Add(_showStrip);
-        _sounds = new Forms.ToolStripMenuItem("Звуки") { CheckOnClick = true };
-        _sounds.Click += (_, _) => SoundsToggled?.Invoke(this, _sounds.Checked);
-        menu.Items.Add(_sounds);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Выйти", null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
 
@@ -48,15 +44,6 @@ public sealed class TrayIcon : IDisposable
     {
         get => _showStrip.Checked;
         set => _showStrip.Checked = value;
-    }
-
-    /// <summary>Галочка «Звуки» в меню значка.</summary>
-    public event EventHandler<bool>? SoundsToggled;
-
-    public bool SoundsChecked
-    {
-        get => _sounds.Checked;
-        set => _sounds.Checked = value;
     }
 
     public void Dispose()
