@@ -8,8 +8,12 @@ using Snapkit.Core;
 
 namespace Snapkit.App.Tests;
 
-/// <summary>Тесты показывают настоящее окно на экране — при сборке не запускаются.</summary>
+/// <summary>
+/// Тесты показывают настоящее окно на экране — при сборке не запускаются. Идут в одной очереди
+/// с тестами буфера: показанное окно становится активным, а тест вставки следит, чтобы активное окно не менялось.
+/// </summary>
 [Trait("Category", "Desktop")]
+[Collection("Clipboard")]
 public partial class CaptureOverlayWindowTests
 {
     private static readonly RectI Bounds = new(60, 60, 400, 300);
