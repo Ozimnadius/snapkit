@@ -125,8 +125,8 @@ public sealed partial class CaptureController(SessionService session, Action hid
         var letters = CaptureLetters.Assign(session.Model.Captures.Select(c => c.Id == captureId ? c with { IsSent = false } : c));
         // Редактору — настоящее место снимка, а не рамка окна: рамка не выходит за монитор, и картинка
         // больше экрана сдвинулась бы к его углу, а разметка встала бы не туда
-        var editor = new EditorSurface(CreateContext(window, local, source, capture.Annotations,
-            capture.SnapshotNote, letters[captureId], regionEditable: false));
+        var editor = new EditorSurface(CreateContext(window, local, source, new PointD(local.X, local.Y), showSource: true,
+            capture.Annotations, capture.SnapshotNote, letters[captureId], regionEditable: false));
         editor.CopyRequested += (_, _) => CopyFromEditor(editor, source);
         editor.Done += (_, result) =>
         {
@@ -168,8 +168,12 @@ public sealed partial class CaptureController(SessionService session, Action hid
         return (primary, new RectI(x, y, screenBounds.Width, screenBounds.Height));
     }
 
-    private static EditorContext CreateContext(CaptureOverlayWindow window, RectI region, BitmapSource? background,
-        System.Collections.Immutable.ImmutableList<Annotation> annotations, string snapshotNote, char letter, bool regionEditable)
+    /// <summary>
+    /// source — пиксели под снимком (кадр монитора или исходник), sourceOrigin — их место в координатах монитора;
+    /// showSource — рисовать их на холсте (у нового снимка кадр уже показывает окно).
+    /// </summary>
+    private static EditorContext CreateContext(CaptureOverlayWindow window, RectI region, BitmapSource source, PointD sourceOrigin,
+        bool showSource, System.Collections.Immutable.ImmutableList<Annotation> annotations, string snapshotNote, char letter, bool regionEditable)
     {
         var scale = window.Scale;
         var bounds = window.Monitor.Bounds;
@@ -177,7 +181,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
         return new EditorContext(
             new Size(bounds.Width / scale, bounds.Height / scale), scale, region,
             new RectI(work.X - bounds.X, work.Y - bounds.Y, work.Width, work.Height),
-            background, annotations, snapshotNote, letter, regionEditable);
+            source, sourceOrigin, showSource, annotations, snapshotNote, letter, regionEditable);
     }
 
     /// <summary>Область выделена — в этом окне открывается редактор, остальные мониторы больше не реагируют.</summary>
@@ -185,8 +189,8 @@ public sealed partial class CaptureController(SessionService session, Action hid
     {
         foreach (var other in _windows.Where(w => w != window)) other.SelectionLocked = true;
 
-        var editor = new EditorSurface(CreateContext(window, window.Region!.Value, background: null, [], "",
-            (char)('A' + session.Model.UnsentCount), regionEditable: true));
+        var editor = new EditorSurface(CreateContext(window, window.Region!.Value, window.Frame, new PointD(0, 0), showSource: false,
+            [], "", (char)('A' + session.Model.UnsentCount), regionEditable: true));
         editor.Done += (_, result) => CompleteNew(window, editor.Region, result);
         editor.CopyRequested += (_, _) => CopyFromEditor(editor, Crop(window.Frame, editor.Region));
         editor.Cancelled += (_, _) =>

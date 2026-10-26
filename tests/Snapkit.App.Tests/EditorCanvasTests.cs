@@ -24,7 +24,7 @@ public class EditorCanvasTests
         var image = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, pixels, w * 4);
         image.Freeze();
 
-        var canvas = new EditorCanvas { PixelWidth = 100, PixelHeight = 50, Background = image };
+        var canvas = new EditorCanvas { PixelWidth = 100, PixelHeight = 50, Source = image, ShowSource = true };
         canvas.Measure(new Size(100, 50));
         canvas.Arrange(new Rect(0, 0, 100, 50));
         var target = new RenderTargetBitmap(100, 50, 96, 96, PixelFormats.Pbgra32);

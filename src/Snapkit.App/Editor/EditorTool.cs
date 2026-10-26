@@ -16,7 +16,9 @@ public sealed record EditorResult(ImmutableList<Annotation> Annotations, string 
 /// MonitorSize — размер монитора в единицах WPF; Scale — физические пиксели на единицу;
 /// Region — область снимка в физических пикселях внутри монитора;
 /// WorkArea — рабочая область монитора (без панели задач) в тех же координатах;
-/// Background — картинка снимка, если под редактором не застывший кадр (повторное открытие);
+/// Source — пиксели под снимком для размытия и пипетки: у нового снимка кадр монитора,
+/// у открытого из ленты — его исходник; SourceOrigin — где пиксель (0,0) Source в координатах монитора;
+/// ShowSource — рисовать Source на холсте (у нового снимка кадр уже показывает окно);
 /// RegionEditable — можно ли менять границы снимка маркерами.
 /// </summary>
 public sealed record EditorContext(
@@ -24,7 +26,9 @@ public sealed record EditorContext(
     double Scale,
     RectI Region,
     RectI WorkArea,
-    BitmapSource? Background,
+    BitmapSource Source,
+    PointD SourceOrigin,
+    bool ShowSource,
     ImmutableList<Annotation> Annotations,
     string SnapshotNote,
     char Letter,

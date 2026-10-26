@@ -64,7 +64,9 @@ public sealed class EditorSurface : UserControl
 
         var toPixels = new ScaleTransform(1 / context.Scale, 1 / context.Scale);
         _canvas.RenderTransform = toPixels;
-        _canvas.Background = context.Background;
+        _canvas.Source = context.Source;
+        _canvas.SourceOrigin = context.SourceOrigin;
+        _canvas.ShowSource = context.ShowSource;
         _canvas.Letter = context.Letter;
         _textLayer.RenderTransform = toPixels;
         _layer.Children.Add(_canvas);

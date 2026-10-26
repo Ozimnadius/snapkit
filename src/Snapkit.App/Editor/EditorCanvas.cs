@@ -18,7 +18,12 @@ internal sealed class EditorCanvas : FrameworkElement
 
     public int PixelWidth { get; set; }
     public int PixelHeight { get; set; }
-    public BitmapSource? Background { get; set; }
+
+    /// <summary>Пиксели под снимком (для размытия), их место в координатах монитора и показывать ли их как фон.</summary>
+    public BitmapSource? Source { get; set; }
+    public PointD SourceOrigin { get; set; }
+    public bool ShowSource { get; set; }
+
     public IReadOnlyList<Annotation> Items { get; set; } = [];
 
     /// <summary>Фигура, которая сейчас рисуется (ещё не в истории).</summary>
@@ -41,13 +46,14 @@ internal sealed class EditorCanvas : FrameworkElement
         // Прозрачная заливка нужна, чтобы холст получал клики по всей площади
         dc.DrawRectangle(Brushes.Transparent, null, bounds);
         dc.PushClip(new RectangleGeometry(bounds));
-        // Снимок рисуется 1:1, а не вписывается в холст: если он не поместился на экран,
-        // край обрезается, но разметка остаётся там же, где на снимке
-        if (Background is not null) dc.DrawImage(Background, new Rect(0, 0, Background.PixelWidth, Background.PixelHeight));
         dc.PushTransform(new TranslateTransform(-Offset.X, -Offset.Y));
+        // Снимок рисуется 1:1 на своём месте, а не вписывается в холст: если он не поместился
+        // на экран или обрезан, край просто не виден, а разметка остаётся там же, где на снимке
+        if (ShowSource && Source is not null)
+            dc.DrawImage(Source, new Rect(SourceOrigin.X, SourceOrigin.Y, Source.PixelWidth, Source.PixelHeight));
 
         var items = Preview is null ? Items : Items.Append(Preview).ToList();
-        AnnotationPainter.DrawAll(dc, items, Letter);
+        AnnotationPainter.DrawAll(dc, items, Letter, Source is null ? null : new BlurSource(Source, SourceOrigin));
         if (PendingPinId is { } pendingId && Items.FirstOrDefault(a => a.Id == pendingId) is { HasNote: false } pending)
         {
             var next = Items.Count(a => a.HasNote) + 1;
