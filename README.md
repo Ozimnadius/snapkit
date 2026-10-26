@@ -34,6 +34,18 @@ dotnet test Snapkit.slnx
 | Снимки текущей ленты | `%LOCALAPPDATA%\Snapkit\session\` |
 | Настройки | `%APPDATA%\Snapkit\settings.json` |
 
+## Клавиша снимка
+
+По умолчанию — Print Screen. Окна настроек пока нет (оно в этапе 4), клавиши задаются
+в `%APPDATA%\Snapkit\settings.json`, поле `captureHotkeys`, через запятую:
+
+```json
+"captureHotkeys": "PrintScreen, Ctrl+F12"
+```
+
+Модификаторы — Ctrl, Alt, Shift, Win; клавиша — PrintScreen, F1–F24, буква или цифра.
+После правки файла перезапустите Snapkit.
+
 ## Устройство
 
 - `src/Snapkit.Core` — логика без интерфейса: модель снимков, нумерация, текст для чата,

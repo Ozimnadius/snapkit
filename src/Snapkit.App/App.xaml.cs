@@ -189,7 +189,12 @@ public partial class App : Application
     /// <summary>Глобальные клавиши: Print Screen — снимок, Ctrl+V — вставка пачки.</summary>
     private void StartKeyboardHook()
     {
-        _router = new KeyRouter(() => new PasteContext(_hasPasteContent, IsPackageCurrent(), Foreground.IsOwn()), ModifierState.Read);
+        var captureKeys = HotkeyParser.ParseList(_settings.CaptureHotkeys);
+        _router = new KeyRouter(() => new PasteContext(_hasPasteContent, IsPackageCurrent(), Foreground.IsOwn()), ModifierState.Read)
+        {
+            Hotkeys = captureKeys.ToDictionary(key => key, _ => KeyAction.CaptureRegion),
+        };
+        _stripModel.EmptyHint = EmptyHintFor(captureKeys);
         _paste = new PasteCoordinator(_session, _clipboard!, _router, _publisher.CreatePastePlan, () => _settings.ClearStripAfterPaste);
         _hook = new KeyboardHookThread(_router, action => Dispatcher.BeginInvoke(() => OnKeyAction(action)));
         try { _hook.Start(); }
@@ -198,6 +203,14 @@ public partial class App : Application
             Log.Error("перехват клавиатуры", ex);
             Toasts.Error("Не удалось перехватить клавиши: Print Screen и вставка пачки работать не будут");
         }
+    }
+
+    /// <summary>«Нажми Print Screen или «Новый снимок»» — с клавишами из настроек.</summary>
+    private static string EmptyHintFor(IReadOnlyList<Hotkey> keys)
+    {
+        var names = keys.Select(HotkeyParser.Display).ToList();
+        var list = names.Count == 1 ? names[0] : string.Join(", ", names);
+        return $"Нажми {list} или «Новый снимок»";
     }
 
     // Вызывается с потока хука клавиатуры

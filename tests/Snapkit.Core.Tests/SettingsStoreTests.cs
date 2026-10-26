@@ -42,10 +42,21 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_OldFileWithoutHotkeys_UsesPrintScreen()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(FilePath, """{ "launchAtStartup": true, "stripTopmost": false }""");
+        var (settings, wasReset) = new SettingsStore(FilePath).Load();
+        Assert.False(wasReset);
+        Assert.False(settings.StripTopmost);
+        Assert.Equal("PrintScreen", settings.CaptureHotkeys);
+    }
+
+    [Fact]
     public void SaveThenLoad_RoundTrips()
     {
         var saved = new AppSettings(LaunchAtStartup: false, ClearStripAfterPaste: true, StripLeft: 100.5, StripTop: 42,
-            AccentColor: "#8E24AA", SnippingHintShown: true);
+            AccentColor: "#8E24AA", SnippingHintShown: true, CaptureHotkeys: "PrintScreen, Ctrl+F12");
         new SettingsStore(FilePath).Save(saved);
         var (loaded, wasReset) = new SettingsStore(FilePath).Load();
         Assert.Equal(saved, loaded);

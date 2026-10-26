@@ -253,6 +253,22 @@ public class KeyRouterTests
     }
 
     [Fact]
+    public void CtrlF12_TriggersCapture_WhenConfigured()
+    {
+        var actual = Mod.None;
+        var r = new KeyRouter(() => Ready, () => actual)
+        {
+            Hotkeys = new Dictionary<Hotkey, KeyAction> { [new Hotkey(HotkeyMods.Ctrl, 0x7B)] = KeyAction.CaptureRegion },
+        };
+        actual = Mod.LCtrl;
+        r.Process(Down(Vk.LCtrl));
+        Assert.Equal(new KeyDecision(true, KeyAction.CaptureRegion), r.Process(Down(0x7B)));
+        Assert.Equal(Swallow, r.Process(Up(0x7B)));
+        actual = Mod.None;
+        Assert.Equal(Pass, r.Process(Down(0x7B))); // F12 без Ctrl — обычная клавиша
+    }
+
+    [Fact]
     public void Modifiers_AreNeverSuppressed()
     {
         var r = new KeyRouter(() => Ready) { PasteInProgress = true };
