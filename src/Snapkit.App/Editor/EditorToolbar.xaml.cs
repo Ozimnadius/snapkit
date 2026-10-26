@@ -5,14 +5,13 @@ using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using Snapkit.App.Rendering;
+using Snapkit.Core.Model;
 
 namespace Snapkit.App.Editor;
 
 /// <summary>Панель инструментов редактора. Только сообщает о нажатиях; состояние хранит EditorSurface.</summary>
 public partial class EditorToolbar : UserControl
 {
-    private static readonly string[] ColorNames = ["Красный", "Оранжевый", "Жёлтый", "Зелёный", "Синий", "Фиолетовый"];
-
     private static readonly Dictionary<EditorTool, string> Names = new()
     {
         [EditorTool.Rectangle] = "Прямоугольник",
@@ -33,6 +32,8 @@ public partial class EditorToolbar : UserControl
     };
 
     private IReadOnlyDictionary<ToolGroup, EditorTool> _lastVariant = new Dictionary<ToolGroup, EditorTool>();
+    private FillMode _fill;
+    private LineStyle _lineStyle;
 
     public EditorToolbar()
     {
@@ -48,18 +49,39 @@ public partial class EditorToolbar : UserControl
     }
 
     public event EventHandler<EditorTool>? ToolSelected;
-    public event EventHandler<string>? ColorSelected;
+    public event EventHandler<ColorTarget>? ColorPickerRequested;
+    public event EventHandler<FillMode>? FillSelected;
+    public event EventHandler? FillColorReset;
     public event EventHandler<double>? ThicknessSelected;
+    public event EventHandler<LineStyle>? LineStyleSelected;
     public event EventHandler? UndoClicked;
     public event EventHandler? RedoClicked;
     public event EventHandler? CopyClicked;
     public event EventHandler? DoneClicked;
     public event EventHandler? HelpClicked;
 
+    /// <summary>Где на панели кнопка цвета — над ней открывается выбор цвета.</summary>
+    public double ColorButtonLeft => ColorButton.IsLoaded ? ColorButton.TranslatePoint(new Point(0, 0), this).X : 0;
+
+    /// <summary>
+    /// Показать состояние редактора. fillApplicable — заливку можно применить (рамки и овал);
+    /// иначе кнопка заливки скрыта.
+    /// </summary>
     public void Show(EditorTool tool, IReadOnlyDictionary<ToolGroup, EditorTool> lastVariant, string color, double thickness,
-        bool canUndo, bool canRedo)
+        FillMode fill, string? fillColor, LineStyle lineStyle, bool fillApplicable, bool canUndo, bool canRedo)
     {
         _lastVariant = lastVariant;
+        _fill = fill;
+        _lineStyle = lineStyle;
+        FillButton.Visibility = fillApplicable ? Visibility.Visible : Visibility.Collapsed;
+        FillNone.Visibility = fill == FillMode.None ? Visibility.Visible : Visibility.Collapsed;
+        FillSwatch.Fill = fill switch
+        {
+            FillMode.Solid => Palette.Brush(fillColor ?? color),
+            FillMode.SemiTransparent => Palette.Brush(fillColor ?? color, 0.3),
+            FillMode.Blur => Palette.Brush("#9AA0A6", 0.7),
+            _ => Brushes.Transparent,
+        };
         ShowGroups();
         var group = EditorKeys.GroupOf(tool);
         SelectTool.IsChecked = tool == EditorTool.Select;
@@ -128,19 +150,28 @@ public partial class EditorToolbar : UserControl
         menu.IsOpen = true;
     }
 
-    private void ColorButton_Click(object sender, RoutedEventArgs e)
+    private void ColorButton_Click(object sender, RoutedEventArgs e) => ColorPickerRequested?.Invoke(this, ColorTarget.Stroke);
+
+    private void FillButton_Click(object sender, RoutedEventArgs e)
     {
-        var menu = new ContextMenu { PlacementTarget = ColorButton, Placement = PlacementMode.Bottom };
-        for (var i = 0; i < Palette.Markup.Length; i++)
+        var menu = new ContextMenu { PlacementTarget = FillButton, Placement = PlacementMode.Bottom };
+        foreach (var (mode, name) in new[]
+                 {
+                     (FillMode.None, "Без заливки"), (FillMode.Solid, "Сплошная"),
+                     (FillMode.SemiTransparent, "Полупрозрачная"), (FillMode.Blur, "Размытием"),
+                 })
         {
-            var hex = Palette.Markup[i];
-            var header = new StackPanel { Orientation = Orientation.Horizontal };
-            header.Children.Add(new Ellipse { Width = 14, Height = 14, Fill = Palette.Brush(hex), Margin = new Thickness(0, 0, 10, 0) });
-            header.Children.Add(new TextBlock { Text = ColorNames[i], VerticalAlignment = VerticalAlignment.Center });
-            var item = new MenuItem { Header = header };
-            item.Click += (_, _) => ColorSelected?.Invoke(this, hex);
+            var item = new MenuItem { Header = name, IsChecked = mode == _fill };
+            item.Click += (_, _) => FillSelected?.Invoke(this, mode);
             menu.Items.Add(item);
         }
+        menu.Items.Add(new Separator());
+        var pick = new MenuItem { Header = "Цвет заливки…" };
+        pick.Click += (_, _) => ColorPickerRequested?.Invoke(this, ColorTarget.Fill);
+        menu.Items.Add(pick);
+        var reset = new MenuItem { Header = "Как цвет обводки" };
+        reset.Click += (_, _) => FillColorReset?.Invoke(this, EventArgs.Empty);
+        menu.Items.Add(reset);
         menu.IsOpen = true;
     }
 
@@ -158,6 +189,25 @@ public partial class EditorToolbar : UserControl
             header.Children.Add(new TextBlock { Text = $"{thickness:0} px", VerticalAlignment = VerticalAlignment.Center });
             var item = new MenuItem { Header = header };
             item.Click += (_, _) => ThicknessSelected?.Invoke(this, thickness);
+            menu.Items.Add(item);
+        }
+        menu.Items.Add(new Separator());
+        foreach (var (style, name, dash) in new[]
+                 {
+                     (LineStyle.Solid, "Сплошная", (DoubleCollection?)null),
+                     (LineStyle.Dashed, "Пунктир", new DoubleCollection([3, 2])),
+                     (LineStyle.Dotted, "Точки", new DoubleCollection([0, 2])),
+                 })
+        {
+            var header = new StackPanel { Orientation = Orientation.Horizontal };
+            header.Children.Add(new Line
+            {
+                X1 = 0, X2 = 28, Stroke = Brushes.White, StrokeThickness = 3, StrokeDashArray = dash,
+                StrokeDashCap = PenLineCap.Round, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0),
+            });
+            header.Children.Add(new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center });
+            var item = new MenuItem { Header = header, IsChecked = style == _lineStyle };
+            item.Click += (_, _) => LineStyleSelected?.Invoke(this, style);
             menu.Items.Add(item);
         }
         menu.IsOpen = true;

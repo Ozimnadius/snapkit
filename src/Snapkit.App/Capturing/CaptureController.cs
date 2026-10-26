@@ -32,6 +32,10 @@ public sealed partial class CaptureController(SessionService session, Action hid
     /// <summary>Положить снимок из редактора в буфер — картинку с разметкой и комментарии (Ctrl+Shift+C).</summary>
     public Func<BitmapSource, System.Collections.Immutable.ImmutableList<Annotation>, string, Task>? CopyDraft { get; set; }
 
+    /// <summary>Свои цвета разметки из настроек («#112233,#445566») и их сохранение.</summary>
+    public Func<string>? CustomColors { get; set; }
+    public Action<string>? SaveCustomColors { get; set; }
+
     public event EventHandler? Closed;
 
     public void StartNewCapture()
@@ -144,6 +148,8 @@ public sealed partial class CaptureController(SessionService session, Action hid
             Close();
         };
         _editor = editor;
+        editor.CustomColors = CustomColors;
+        editor.SaveCustomColors = SaveCustomColors;
         window.ShowEditor(editor);
         Foreground.Activate(window);
     }
@@ -203,6 +209,8 @@ public sealed partial class CaptureController(SessionService session, Action hid
             Close();
         };
         _editor = editor;
+        editor.CustomColors = CustomColors;
+        editor.SaveCustomColors = SaveCustomColors;
         window.ShowEditor(editor);
         Foreground.Activate(window);
     }

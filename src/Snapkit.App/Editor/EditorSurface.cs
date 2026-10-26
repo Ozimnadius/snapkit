@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Snapkit.App.Imaging;
 using Snapkit.App.Rendering;
 using Snapkit.Core;
 using Snapkit.Core.Editing;
@@ -66,6 +67,9 @@ public sealed class EditorSurface : UserControl
     private PointD _textAnchor;
     private NoteEditorPopup? _notePopup;
     private ShortcutsPopup? _shortcuts;
+    private ColorPickerPopup? _colorPicker;
+    // Ждём щелчка пипеткой: чей цвет он задаст
+    private ColorTarget? _pipette;
 
     public EditorSurface(EditorContext context)
     {
@@ -100,8 +104,19 @@ public sealed class EditorSurface : UserControl
         _canvas.MouseLeftButtonUp += OnCanvasUp;
 
         _toolbar.ToolSelected += (_, tool) => SetTool(tool);
-        _toolbar.ColorSelected += (_, color) => { _color = _lastColor = color; RecolorSelected(); Refresh(); };
-        _toolbar.ThicknessSelected += (_, thickness) => { _thickness = _lastThickness = thickness; Refresh(); };
+        _toolbar.ColorPickerRequested += (_, target) => OpenColorPicker(target);
+        _toolbar.FillSelected += (_, fill) => SetFill(fill, _fillColor);
+        _toolbar.FillColorReset += (_, _) => SetFill(_fill, null);
+        _toolbar.ThicknessSelected += (_, thickness) =>
+        {
+            _thickness = _lastThickness = thickness;
+            ApplyToSelected(a => a with { Thickness = thickness });
+        };
+        _toolbar.LineStyleSelected += (_, style) =>
+        {
+            _lineStyle = _lastLineStyle = style;
+            ApplyToSelected(a => HasLineStyle(a.Kind) ? a with { LineStyle = style } : a);
+        };
         _toolbar.UndoClicked += (_, _) => Undo();
         _toolbar.RedoClicked += (_, _) => Redo();
         _toolbar.CopyClicked += (_, _) => CopyRequested?.Invoke(this, EventArgs.Empty);
@@ -126,6 +141,10 @@ public sealed class EditorSurface : UserControl
     public event EventHandler<EditorResult>? Done;
     public event EventHandler? Cancelled;
     public event EventHandler? CopyRequested;
+
+    /// <summary>Свои цвета из настроек и их сохранение (подключает CaptureController).</summary>
+    public Func<string>? CustomColors { get; set; }
+    public Action<string>? SaveCustomColors { get; set; }
 
     public RectI Region => _region;
     public char Letter => _context.Letter;
@@ -166,10 +185,13 @@ public sealed class EditorSurface : UserControl
         var shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
 
-        // Открытая подсказка закрывается по Esc и не отменяет снимок
-        if (_shortcuts is not null && key == Key.Escape)
+        // Открытые подсказка, выбор цвета и пипетка закрываются по Esc и не отменяют снимок
+        if (key == Key.Escape && (_shortcuts is not null || _colorPicker is not null || _pipette is not null))
         {
-            ToggleShortcuts();
+            if (_shortcuts is not null) ToggleShortcuts();
+            CloseColorPicker();
+            _pipette = null;
+            Refresh();
             return true;
         }
         if (key == Key.F1 || (shift && key == Key.OemQuestion))
@@ -232,6 +254,12 @@ public sealed class EditorSurface : UserControl
         // Начали рисовать дальше — непустая заметка сохраняется, пустая просто закрывается
         CloseNote(save: true);
         var p = ToMonitor(e.GetPosition(_canvas));
+        CloseColorPicker();
+        if (_pipette is not null)
+        {
+            PickColor(p);
+            return;
+        }
 
         switch (_tool)
         {
@@ -371,6 +399,7 @@ public sealed class EditorSurface : UserControl
 
     private Cursor HoverCursor(PointD p)
     {
+        if (_pipette is not null) return Cursors.Cross;
         var tolerance = SelectToleranceDip * Scale;
         switch (_tool)
         {
@@ -560,11 +589,92 @@ public sealed class EditorSurface : UserControl
         Refresh();
     }
 
-    // Новый цвет из панели применяется и к выделенной фигуре
-    private void RecolorSelected()
+    /// <summary>Новые цвет, заливка, толщина или стиль применяются и к выделенной фигуре — одним шагом истории.</summary>
+    private void ApplyToSelected(Func<Annotation, Annotation> change)
     {
-        if (_canvas.SelectedId is not { } id) return;
-        _history.Push(_history.Current.Select(a => a.Id == id ? a with { Color = _color } : a).ToImmutableList());
+        if (_canvas.SelectedId is { } id && _history.Current.FirstOrDefault(a => a.Id == id) is { } selected
+            && change(selected) is var changed && changed != selected)
+        {
+            _history.Push(_history.Current.Replace(selected, changed));
+        }
+        Refresh();
+    }
+
+    private static bool IsFillable(AnnotationKind kind)
+        => kind is AnnotationKind.Rectangle or AnnotationKind.RoundedRectangle or AnnotationKind.Ellipse;
+
+    // Стиль линии есть у контуров и штрихов; у текста, кружка, маркера и размытия — нет
+    private static bool HasLineStyle(AnnotationKind kind)
+        => kind is not (AnnotationKind.Text or AnnotationKind.Pin or AnnotationKind.Marker or AnnotationKind.Blur or AnnotationKind.WideArrow);
+
+    private void SetFill(FillMode fill, string? fillColor)
+    {
+        _fill = _lastFill = fill;
+        _fillColor = _lastFillColor = fillColor;
+        ApplyToSelected(a => IsFillable(a.Kind) ? a with { Fill = fill, FillColor = fillColor } : a);
+    }
+
+    private void OpenColorPicker(ColorTarget target)
+    {
+        CloseColorPicker();
+        var current = target == ColorTarget.Stroke ? _color : _fillColor ?? _color;
+        var picker = new ColorPickerPopup(target, current, HexColor.Parse(CustomColors?.Invoke() ?? ""));
+        picker.ColorChosen += (_, chosen) =>
+        {
+            CloseColorPicker();
+            ApplyColor(target, chosen.Hex, chosen.IsCustom);
+        };
+        picker.PipetteRequested += (_, _) =>
+        {
+            CloseColorPicker();
+            _pipette = target;
+            _canvas.Cursor = Cursors.Cross;
+        };
+        picker.Closed += (_, _) => CloseColorPicker();
+        _colorPicker = picker;
+        _layer.Children.Add(picker);
+
+        // Над панелью инструментов, а если там нет места — под ней
+        picker.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var barLeft = Canvas.GetLeft(_toolbar);
+        var barTop = Canvas.GetTop(_toolbar);
+        var top = barTop - picker.DesiredSize.Height - NoteGap;
+        if (top < ScreenMargin) top = barTop + _toolbar.ActualHeight + NoteGap;
+        // Окно встаёт над кнопкой цвета, а не над началом панели
+        Canvas.SetLeft(picker, Math.Clamp(barLeft + _toolbar.ColorButtonLeft, ScreenMargin, Math.Max(ScreenMargin, Width - picker.DesiredSize.Width - ScreenMargin)));
+        Canvas.SetTop(picker, Math.Max(ScreenMargin, top));
+    }
+
+    private void CloseColorPicker()
+    {
+        if (_colorPicker is not { } picker) return;
+        _colorPicker = null;
+        _layer.Children.Remove(picker);
+        Window.GetWindow(this)?.Focus();
+    }
+
+    private void ApplyColor(ColorTarget target, string hex, bool isCustom)
+    {
+        if (isCustom && CustomColors is { } read && SaveCustomColors is { } save) save(HexColor.AddRecent(read(), hex));
+        if (target == ColorTarget.Stroke)
+        {
+            _color = _lastColor = hex;
+            ApplyToSelected(a => a with { Color = hex });
+        }
+        else
+        {
+            // Выбрали цвет заливки — значит, заливка нужна: без неё включаем сплошную
+            SetFill(_fill == FillMode.None ? FillMode.Solid : _fill, hex);
+        }
+    }
+
+    /// <summary>Пипетка: цвет пикселя снимка под щелчком.</summary>
+    private void PickColor(PointD p)
+    {
+        var target = _pipette!.Value;
+        _pipette = null;
+        if (PixelSampler.HexAt(_context.Source, _context.SourceOrigin, p) is { } hex) ApplyColor(target, hex, isCustom: true);
+        else Refresh();
     }
 
     private PointD ToMonitor(Point canvasPoint)
@@ -583,7 +693,10 @@ public sealed class EditorSurface : UserControl
     {
         _canvas.Items = _history.Current;
         _canvas.InvalidateVisual();
-        _toolbar.Show(_tool, _lastVariant, _color, _thickness, _history.CanUndo, _history.CanRedo);
+        var selected = _canvas.SelectedId is { } id ? _history.Current.FirstOrDefault(a => a.Id == id) : null;
+        var fillApplicable = EditorKeys.GroupOf(_tool) == ToolGroup.Shape || (selected is not null && IsFillable(selected.Kind));
+        _toolbar.Show(_tool, _lastVariant, _color, _thickness, _fill, _fillColor, _lineStyle, fillApplicable,
+            _history.CanUndo, _history.CanRedo);
 
         var number = 0;
         _comments.SetItems(_history.Current

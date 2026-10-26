@@ -119,6 +119,8 @@ public partial class App : Application
                 await _publisher.CopyDraftAsync(source, annotations, note);
                 UpdatePasteState();
             },
+            CustomColors = () => _settings.CustomColors,
+            SaveCustomColors = colors => SaveSettings(_settings with { CustomColors = colors }),
         };
         WireStrip();
         WireTray();

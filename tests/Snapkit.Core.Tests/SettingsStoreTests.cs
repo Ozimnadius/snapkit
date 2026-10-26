@@ -53,10 +53,18 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_OldSettingsWithoutCustomColors_IsEmpty()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(FilePath, """{ "launchAtStartup": true, "captureHotkeys": "PrintScreen, Ctrl+F12" }""");
+        Assert.Equal("", new SettingsStore(FilePath).Load().Settings.CustomColors);
+    }
+
+    [Fact]
     public void SaveThenLoad_RoundTrips()
     {
         var saved = new AppSettings(LaunchAtStartup: false, ClearStripAfterPaste: true, StripLeft: 100.5, StripTop: 42,
-            AccentColor: "#8E24AA", SnippingHintShown: true, CaptureHotkeys: "PrintScreen, Ctrl+F12");
+            AccentColor: "#8E24AA", SnippingHintShown: true, CaptureHotkeys: "PrintScreen, Ctrl+F12", CustomColors: "#112233,#445566");
         new SettingsStore(FilePath).Save(saved);
         var (loaded, wasReset) = new SettingsStore(FilePath).Load();
         Assert.Equal(saved, loaded);

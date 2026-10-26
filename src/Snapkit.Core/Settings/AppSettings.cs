@@ -11,4 +11,6 @@ public sealed record AppSettings(
     string AccentColor = "#2F7BF5",
     bool SnippingHintShown = false,
     // Клавиши снимка через запятую: «PrintScreen, Ctrl+F12». Окно настроек клавиш — в этапе 4
-    string CaptureHotkeys = "PrintScreen");
+    string CaptureHotkeys = "PrintScreen",
+    // Свои цвета разметки через запятую, новые первыми, не больше 8
+    string CustomColors = "");
