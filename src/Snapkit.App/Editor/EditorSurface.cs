@@ -25,8 +25,9 @@ public sealed class EditorSurface : UserControl
     private const double PanelGap = 12;
     private const double NoteGap = 8;
 
-    // Последние выбранные инструмент, цвет и толщина запоминаются между снимками
+    // Последние выбранные инструмент, варианты групп, цвет и толщина запоминаются между снимками
     private static EditorTool _lastTool = EditorTool.Rectangle;
+    private static readonly Dictionary<ToolGroup, EditorTool> _lastVariant = [];
     private static string _lastColor = Palette.Markup[0];
     private static double _lastThickness = Palette.DefaultThickness;
 
@@ -49,6 +50,7 @@ public sealed class EditorSurface : UserControl
     private TextBox? _textBox;
     private PointD _textAnchor;
     private NoteEditorPopup? _notePopup;
+    private ShortcutsPopup? _shortcuts;
 
     public EditorSurface(EditorContext context)
     {
@@ -88,6 +90,7 @@ public sealed class EditorSurface : UserControl
         _toolbar.RedoClicked += (_, _) => Redo();
         _toolbar.CopyClicked += (_, _) => CopyRequested?.Invoke(this, EventArgs.Empty);
         _toolbar.DoneClicked += (_, _) => Finish();
+        _toolbar.HelpClicked += (_, _) => ToggleShortcuts();
 
         _comments.SetSnapshotNote(context.SnapshotNote);
         _comments.SnapshotNoteChanged += (_, note) => _snapshotNote = note;
@@ -147,6 +150,18 @@ public sealed class EditorSurface : UserControl
         var shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
 
+        // Открытая подсказка закрывается по Esc и не отменяет снимок
+        if (_shortcuts is not null && key == Key.Escape)
+        {
+            ToggleShortcuts();
+            return true;
+        }
+        if (key == Key.F1 || (shift && key == Key.OemQuestion))
+        {
+            ToggleShortcuts();
+            return true;
+        }
+
         switch (key)
         {
             case Key.Z when ctrl && shift: Redo(); return true;
@@ -158,17 +173,8 @@ public sealed class EditorSurface : UserControl
             case Key.Escape: Cancelled?.Invoke(this, EventArgs.Empty); return true;
         }
         if (ctrl || shift) return false;
-        EditorTool? tool = key switch
-        {
-            Key.V => EditorTool.Select,
-            Key.R => EditorTool.Rectangle,
-            Key.A => EditorTool.Arrow,
-            Key.T => EditorTool.Text,
-            Key.C => EditorTool.Pin,
-            _ => null,
-        };
-        if (tool is null) return false;
-        SetTool(tool.Value);
+        if (EditorKeys.ToolFor(key, _lastVariant) is not { } tool) return false;
+        SetTool(tool);
         return true;
     }
 
@@ -177,8 +183,27 @@ public sealed class EditorSurface : UserControl
         CommitText();
         CloseNote(save: true);
         _tool = _lastTool = tool;
+        if (EditorKeys.GroupOf(tool) is var group and not ToolGroup.None) _lastVariant[group] = tool;
         if (tool != EditorTool.Select) _canvas.SelectedId = null;
         Refresh();
+    }
+
+    // Подсказка со всеми клавишами — по центру монитора
+    private void ToggleShortcuts()
+    {
+        if (_shortcuts is { } shown)
+        {
+            _shortcuts = null;
+            _layer.Children.Remove(shown);
+            return;
+        }
+        var popup = new ShortcutsPopup();
+        popup.Closed += (_, _) => ToggleShortcuts();
+        _shortcuts = popup;
+        _layer.Children.Add(popup);
+        popup.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        Canvas.SetLeft(popup, Math.Max(ScreenMargin, (Width - popup.DesiredSize.Width) / 2));
+        Canvas.SetTop(popup, Math.Max(ScreenMargin, (Height - popup.DesiredSize.Height) / 2));
     }
 
     private void OnCanvasDown(object sender, MouseButtonEventArgs e)
@@ -455,7 +480,7 @@ public sealed class EditorSurface : UserControl
     {
         _canvas.Items = _history.Current;
         _canvas.InvalidateVisual();
-        _toolbar.Show(_tool, _color, _thickness, _history.CanUndo, _history.CanRedo);
+        _toolbar.Show(_tool, _lastVariant, _color, _thickness, _history.CanUndo, _history.CanRedo);
 
         var number = 0;
         _comments.SetItems(_history.Current

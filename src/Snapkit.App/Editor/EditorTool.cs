@@ -6,7 +6,14 @@ using Snapkit.Core.Model;
 
 namespace Snapkit.App.Editor;
 
-public enum EditorTool { Select, Rectangle, Arrow, Text, Pin }
+public enum EditorTool
+{
+    Select, Rectangle, RoundedRectangle, Ellipse, Arrow, CurvedArrow, WideArrow, Line,
+    Pencil, Marker, Text, Eraser, Blur, Crop, Pin,
+}
+
+/// <summary>Инструменты, собранные под одной кнопкой панели с меню «▾».</summary>
+public enum ToolGroup { None, Shape, Arrow, Pencil }
 
 /// <summary>Результат «Готово»: разметка, общий комментарий и было ли что-то изменено.</summary>
 public sealed record EditorResult(ImmutableList<Annotation> Annotations, string SnapshotNote, bool IsChanged);

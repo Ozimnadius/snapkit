@@ -31,6 +31,14 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- Узкая часть кнопки группы: открывает меню вариантов -->
+        <Style x:Key="ChevronButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="FontSize" Value="8" />
+            <Setter Property="Content" Value="&#xE70D;" />
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+        </Style>
         <Style x:Key="BarButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
             <Setter Property="Width" Value="36" />
             <Setter Property="Height" Value="36" />
@@ -47,17 +55,21 @@
     <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorderBrush}"
             BorderThickness="1" CornerRadius="12" Padding="6">
         <StackPanel Orientation="Horizontal">
-            <ToggleButton x:Name="SelectTool" Style="{StaticResource ToolButton}" ToolTip="Выбор (V)" Tag="Select" Click="Tool_Click">
-                <Path Data="M0,0 L0,15 L4,11.2 L6.8,17 L9.4,15.8 L6.7,10.2 L12,10.2 Z" StrokeThickness="0"
-                      Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
-            </ToggleButton>
-            <ToggleButton x:Name="RectangleTool" Style="{StaticResource ToolButton}" Content="&#xE739;" ToolTip="Прямоугольник (R)" Tag="Rectangle" Click="Tool_Click" />
-            <ToggleButton x:Name="ArrowTool" Style="{StaticResource ToolButton}" ToolTip="Стрелка (A)" Tag="Arrow" Click="Tool_Click">
-                <Path Data="M1,15 L14,2 M6,2 L14,2 L14,10" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
-            </ToggleButton>
-            <ToggleButton x:Name="TextTool" Style="{StaticResource ToolButton}" Content="&#xE8D2;" ToolTip="Текст (T)" Tag="Text" Click="Tool_Click" />
-            <ToggleButton x:Name="PinTool" Style="{StaticResource ToolButton}" Content="&#xE90A;" ToolTip="Комментарий (C)" Tag="Pin" Click="Tool_Click" />
+            <ToggleButton x:Name="SelectTool" Style="{StaticResource ToolButton}" ToolTip="Выбор (V)" Tag="Select" Click="Tool_Click" />
+            <ToggleButton x:Name="ShapeTool" Style="{StaticResource ToolButton}" Click="Group_Click" Tag="Shape" />
+            <Button Style="{StaticResource ChevronButton}" ToolTip="Другие фигуры" Tag="Shape" Click="GroupMenu_Click" />
+            <ToggleButton x:Name="ArrowTool" Style="{StaticResource ToolButton}" Click="Group_Click" Tag="Arrow" />
+            <Button Style="{StaticResource ChevronButton}" ToolTip="Другие стрелки" Tag="Arrow" Click="GroupMenu_Click" />
+            <ToggleButton x:Name="LineTool" Style="{StaticResource ToolButton}" ToolTip="Линия (L)" Tag="Line" Click="Tool_Click" />
+            <ToggleButton x:Name="PencilTool" Style="{StaticResource ToolButton}" Click="Group_Click" Tag="Pencil" />
+            <Button Style="{StaticResource ChevronButton}" ToolTip="Карандаш или маркер" Tag="Pencil" Click="GroupMenu_Click" />
+            <ToggleButton x:Name="TextTool" Style="{StaticResource ToolButton}" ToolTip="Текст (T)" Tag="Text" Click="Tool_Click" />
+            <ToggleButton x:Name="EraserTool" Style="{StaticResource ToolButton}" ToolTip="Ластик (E)" Tag="Eraser" Click="Tool_Click" />
+            <ToggleButton x:Name="BlurTool" Style="{StaticResource ToolButton}" ToolTip="Размыть (B)" Tag="Blur" Click="Tool_Click" />
+            <ToggleButton x:Name="CropTool" Style="{StaticResource ToolButton}" ToolTip="Обрезать (X)" Tag="Crop" Click="Tool_Click" />
+            <ToggleButton x:Name="PinTool" Style="{StaticResource ToolButton}" ToolTip="Комментарий (C)" Tag="Pin" Click="Tool_Click" />
+            <Button Style="{StaticResource BarButton}" FontFamily="Segoe UI" FontWeight="SemiBold" Content="?"
+                    ToolTip="Клавиши редактора (F1)" Click="Help_Click" />
 
             <Border Style="{StaticResource Divider}" />
 
