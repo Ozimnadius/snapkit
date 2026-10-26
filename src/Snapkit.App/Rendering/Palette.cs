@@ -27,4 +27,17 @@ public static class Palette
         brush.Freeze();
         return brush;
     });
+
+    /// <summary>Полупрозрачная кисть: opacity от 0 до 1.</summary>
+    public static SolidColorBrush Brush(string hex, double opacity)
+    {
+        var alpha = (byte)Math.Round(Math.Clamp(opacity, 0, 1) * 255);
+        return Brushes.GetOrAdd($"{hex}/{alpha}", _ =>
+        {
+            var color = Color(hex);
+            var brush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(alpha, color.R, color.G, color.B));
+            brush.Freeze();
+            return brush;
+        });
+    }
 }

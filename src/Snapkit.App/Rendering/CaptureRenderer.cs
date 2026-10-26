@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Snapkit.App.Imaging;
+using Snapkit.Core;
 using Snapkit.Core.Model;
 
 namespace Snapkit.App.Rendering;
@@ -26,7 +27,7 @@ public static class CaptureRenderer
         {
             dc.PushTransform(new ScaleTransform(scale, scale));
             dc.DrawImage(source, new Rect(0, 0, capture.PixelWidth, capture.PixelHeight));
-            AnnotationPainter.DrawAll(dc, capture.Annotations, letter);
+            AnnotationPainter.DrawAll(dc, capture.Annotations, letter, new BlurSource(source, new PointD(0, 0)));
             dc.Pop();
         }
 
