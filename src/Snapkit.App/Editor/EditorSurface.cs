@@ -476,6 +476,19 @@ public sealed class EditorSurface : UserControl
         return Math.Clamp(barTop, workTop + ScreenMargin, lowest);
     }
 
+    /// <summary>
+    /// Левый край панели инструментов (в единицах WPF): по левому краю снимка, в пределах экрана
+    /// и не под панелью комментариев — она во всю высоту экрана и закрыла бы кнопки инструментов.
+    /// </summary>
+    internal static double ToolbarLeft(double regionLeft, double barWidth, double screenWidth, double panelLeft, double panelWidth)
+    {
+        var left = Math.Clamp(regionLeft, ScreenMargin, Math.Max(ScreenMargin, screenWidth - barWidth - ScreenMargin));
+        var panelRight = panelLeft + panelWidth;
+        if (left < panelRight + PanelGap && left + barWidth > panelLeft - PanelGap)
+            left = panelLeft < screenWidth / 2 ? panelRight + PanelGap : panelLeft - PanelGap - barWidth;
+        return left;
+    }
+
     /// <summary>Холст — ровно на области снимка, панель инструментов — под ней (или над ней, если места нет).</summary>
     private void Layout()
     {
@@ -490,22 +503,21 @@ public sealed class EditorSurface : UserControl
         Canvas.SetLeft(_textLayer, left);
         Canvas.SetTop(_textLayer, top);
 
-        _toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        var size = _toolbar.DesiredSize;
-        var bottom = (_region.Y + _region.Height) / Scale;
-        var barTop = ToolbarTop(top, bottom, size.Height, _context.WorkArea.Y / Scale, WorkBottom);
-        var barLeft = Math.Clamp(left, ScreenMargin, Math.Max(ScreenMargin, Width - size.Width - ScreenMargin));
-        Canvas.SetLeft(_toolbar, barLeft);
-        Canvas.SetTop(_toolbar, barTop);
-
         // Панель комментариев — у края рабочей области, с той стороны, где меньше снимка
         var workLeft = _context.WorkArea.X / Scale;
         var workTop = _context.WorkArea.Y / Scale;
         var workRight = (_context.WorkArea.X + _context.WorkArea.Width) / Scale;
         var regionCenter = left + _region.Width / Scale / 2;
         var panelOnRight = regionCenter < (workLeft + workRight) / 2;
+        var panelLeft = panelOnRight ? workRight - _comments.Width - PanelGap : workLeft + PanelGap;
         _comments.Height = Math.Max(200, WorkBottom - workTop - 2 * PanelGap);
-        Canvas.SetLeft(_comments, panelOnRight ? workRight - _comments.Width - PanelGap : workLeft + PanelGap);
+        Canvas.SetLeft(_comments, panelLeft);
         Canvas.SetTop(_comments, workTop + PanelGap);
+
+        _toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var size = _toolbar.DesiredSize;
+        var bottom = (_region.Y + _region.Height) / Scale;
+        Canvas.SetLeft(_toolbar, ToolbarLeft(left, size.Width, Width, panelLeft, _comments.Width));
+        Canvas.SetTop(_toolbar, ToolbarTop(top, bottom, size.Height, workTop, WorkBottom));
     }
 }
