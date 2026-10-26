@@ -65,7 +65,7 @@ public partial class EditorToolbar : UserControl
 
     /// <summary>
     /// Показать состояние редактора. fillApplicable — заливку можно применить (рамки и овал);
-    /// иначе кнопка заливки скрыта.
+    /// иначе кнопка заливки неактивна, но остаётся на месте: ширина панели не меняется.
     /// </summary>
     public void Show(EditorTool tool, IReadOnlyDictionary<ToolGroup, EditorTool> lastVariant, string color, double thickness,
         FillMode fill, string? fillColor, LineStyle lineStyle, bool fillApplicable, bool canUndo, bool canRedo)
@@ -73,7 +73,7 @@ public partial class EditorToolbar : UserControl
         _lastVariant = lastVariant;
         _fill = fill;
         _lineStyle = lineStyle;
-        FillButton.Visibility = fillApplicable ? Visibility.Visible : Visibility.Collapsed;
+        FillButton.IsEnabled = fillApplicable;
         FillNone.Visibility = fill == FillMode.None ? Visibility.Visible : Visibility.Collapsed;
         FillSwatch.Fill = fill switch
         {

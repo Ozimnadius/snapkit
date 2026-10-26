@@ -28,6 +28,8 @@ public sealed class EditorSurface : UserControl
     private const double ToolbarGap = 10;
     private const double ScreenMargin = 8;
     private const double PanelGap = 12;
+    private const double CommentsFullWidth = 300;
+    private const double CommentsMinWidth = 200;
     private const double NoteGap = 8;
 
     // Последние выбранные инструмент, варианты групп, цвет и толщина запоминаются между снимками
@@ -93,8 +95,9 @@ public sealed class EditorSurface : UserControl
         _textLayer.RenderTransform = toPixels;
         _layer.Children.Add(_canvas);
         _layer.Children.Add(_textLayer);
-        _layer.Children.Add(_toolbar);
+        // Панель инструментов поверх панели комментариев: на узком экране они могут перекрыться
         _layer.Children.Add(_comments);
+        _layer.Children.Add(_toolbar);
         Content = _layer;
         // Клики по панелям не должны доходить до холста и рамки снимка
         _toolbar.MouseLeftButtonDown += (_, e) => e.Handled = true;
@@ -740,15 +743,25 @@ public sealed class EditorSurface : UserControl
     /// <summary>
     /// Левый край панели инструментов (в единицах WPF): по левому краю снимка, в пределах экрана
     /// и не под панелью комментариев — она во всю высоту экрана и закрыла бы кнопки инструментов.
+    /// Если рядом с панелью комментариев места нет, панель инструментов ложится поверх неё,
+    /// но все кнопки остаются на экране.
     /// </summary>
     internal static double ToolbarLeft(double regionLeft, double barWidth, double screenWidth, double panelLeft, double panelWidth)
     {
-        var left = Math.Clamp(regionLeft, ScreenMargin, Math.Max(ScreenMargin, screenWidth - barWidth - ScreenMargin));
+        var rightmost = Math.Max(ScreenMargin, screenWidth - barWidth - ScreenMargin);
+        var left = Math.Clamp(regionLeft, ScreenMargin, rightmost);
         var panelRight = panelLeft + panelWidth;
         if (left < panelRight + PanelGap && left + barWidth > panelLeft - PanelGap)
-            left = panelLeft < screenWidth / 2 ? panelRight + PanelGap : panelLeft - PanelGap - barWidth;
+            left = Math.Clamp(panelLeft < screenWidth / 2 ? panelRight + PanelGap : panelLeft - PanelGap - barWidth, ScreenMargin, rightmost);
         return left;
     }
+
+    /// <summary>
+    /// Ширина панели комментариев (в единицах WPF): 300, а на узком экране — сколько остаётся рядом
+    /// с панелью инструментов (ноутбук 1920×1080 при масштабе 175 %), но не меньше 200.
+    /// </summary>
+    internal static double CommentsWidth(double screenWidth, double barWidth)
+        => Math.Clamp(Math.Floor(screenWidth - barWidth - 2 * PanelGap - ScreenMargin), CommentsMinWidth, CommentsFullWidth);
 
     /// <summary>Холст — ровно на области снимка, панель инструментов — под ней (или над ней, если места нет).</summary>
     private void Layout()
@@ -764,7 +777,11 @@ public sealed class EditorSurface : UserControl
         Canvas.SetLeft(_textLayer, left);
         Canvas.SetTop(_textLayer, top);
 
+        _toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var size = _toolbar.DesiredSize;
+
         // Панель комментариев — у края рабочей области, с той стороны, где меньше снимка
+        _comments.Width = CommentsWidth(Width, size.Width);
         var workLeft = _context.WorkArea.X / Scale;
         var workTop = _context.WorkArea.Y / Scale;
         var workRight = (_context.WorkArea.X + _context.WorkArea.Width) / Scale;
@@ -775,8 +792,6 @@ public sealed class EditorSurface : UserControl
         Canvas.SetLeft(_comments, panelLeft);
         Canvas.SetTop(_comments, workTop + PanelGap);
 
-        _toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        var size = _toolbar.DesiredSize;
         var bottom = (_region.Y + _region.Height) / Scale;
         Canvas.SetLeft(_toolbar, ToolbarLeft(left, size.Width, Width, panelLeft, _comments.Width));
         Canvas.SetTop(_toolbar, ToolbarTop(top, bottom, size.Height, workTop, WorkBottom));

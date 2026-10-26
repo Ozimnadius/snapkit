@@ -76,7 +76,8 @@
             <Button x:Name="ColorButton" Style="{StaticResource BarButton}" ToolTip="Цвет обводки" Click="ColorButton_Click">
                 <Ellipse x:Name="ColorSwatch" Width="18" Height="18" Stroke="#80FFFFFF" StrokeThickness="1" />
             </Button>
-            <Button x:Name="FillButton" Style="{StaticResource BarButton}" ToolTip="Заливка" Click="FillButton_Click">
+            <Button x:Name="FillButton" Style="{StaticResource BarButton}" ToolTip="Заливка (у рамок и овала)"
+                    ToolTipService.ShowOnDisabled="True" Click="FillButton_Click">
                 <Grid Width="18" Height="18">
                     <Rectangle x:Name="FillSwatch" RadiusX="4" RadiusY="4" Stroke="#80FFFFFF" StrokeThickness="1" />
                     <Line x:Name="FillNone" X1="3" Y1="15" X2="15" Y2="3" Stroke="#E8EAED" StrokeThickness="1.5" />
