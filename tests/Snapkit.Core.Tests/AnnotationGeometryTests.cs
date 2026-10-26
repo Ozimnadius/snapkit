@@ -9,6 +9,36 @@ public class AnnotationGeometryTests
     private static readonly Annotation Box = Shape(AnnotationKind.Rectangle, points: [new(10, 10), new(110, 60)]);
 
     [Theory]
+    [InlineData(AnnotationKind.CurvedArrow, 3)]
+    [InlineData(AnnotationKind.Text, 1)]
+    [InlineData(AnnotationKind.Pin, 1)]
+    [InlineData(AnnotationKind.Rectangle, 2)]
+    [InlineData(AnnotationKind.Ellipse, 2)]
+    [InlineData(AnnotationKind.Line, 2)]
+    [InlineData(AnnotationKind.Pencil, 2)]
+    [InlineData(AnnotationKind.Marker, 2)]
+    [InlineData(AnnotationKind.Blur, 2)]
+    [InlineData(AnnotationKind.WideArrow, 2)]
+    public void MinPoints_PerKind(AnnotationKind kind, int expected)
+        => Assert.Equal(expected, AnnotationGeometry.MinPoints(kind));
+
+    [Fact]
+    public void IsWellFormed_CurvedArrowWithTwoPoints_IsFalse()
+        => Assert.False(AnnotationGeometry.IsWellFormed(Shape(AnnotationKind.CurvedArrow, points: [new(0, 0), new(10, 10)])));
+
+    [Fact]
+    public void IsWellFormed_NaNPoint_IsFalse()
+        => Assert.False(AnnotationGeometry.IsWellFormed(Shape(AnnotationKind.Line, points: [new(0, 0), new(double.NaN, 10)])));
+
+    [Fact]
+    public void IsWellFormed_ZeroThickness_IsFalse()
+        => Assert.False(AnnotationGeometry.IsWellFormed(Shape(AnnotationKind.Line) with { Thickness = 0 }));
+
+    [Fact]
+    public void IsWellFormed_PencilStroke_IsTrue()
+        => Assert.True(AnnotationGeometry.IsWellFormed(Shape(AnnotationKind.Pencil, points: [new(0, 0), new(3, 4), new(8, 9)])));
+
+    [Theory]
     [InlineData(10, 30, true)]   // на левой стороне
     [InlineData(60, 35, false)]  // внутри — не попадание, чтобы можно было рисовать поверх
     [InlineData(113, 30, true)]  // рядом с правой стороной, в пределах допуска

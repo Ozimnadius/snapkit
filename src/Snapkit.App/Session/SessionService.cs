@@ -5,6 +5,7 @@ using Snapkit.App.Imaging;
 using Snapkit.App.Rendering;
 using Snapkit.App.Shell;
 using Snapkit.Core;
+using Snapkit.Core.Editing;
 using Snapkit.Core.Model;
 using Snapkit.Core.Session;
 
@@ -125,10 +126,10 @@ public sealed class SessionService(SessionStore store)
             if (capture.Annotations is null || capture.PixelWidth <= 0 || capture.PixelHeight <= 0) return false;
             foreach (var a in capture.Annotations)
             {
-                if (a is null || a.Points.IsDefault || !Enum.IsDefined(a.Kind) || !double.IsFinite(a.Thickness)) return false;
-                var required = a.Kind is AnnotationKind.Rectangle or AnnotationKind.Arrow ? 2 : 1;
-                if (a.Points.Length < required) return false;
-                _ = Palette.Color(a.Color); // бросит, если цвет не читается
+                if (a is null || !AnnotationGeometry.IsWellFormed(a)) return false;
+                // Бросит, если цвет не читается
+                _ = Palette.Color(a.Color);
+                if (a.FillColor is not null) _ = Palette.Color(a.FillColor);
             }
             return GetSource(capture.Id).PixelWidth > 0;
         }

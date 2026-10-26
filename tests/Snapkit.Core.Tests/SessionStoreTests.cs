@@ -14,6 +14,65 @@ public sealed class SessionStoreTests : IDisposable
     }
 
     [Fact]
+    public void Stage1Json_LoadsWithDefaults()
+    {
+        // Лента, записанная этапом 1: у фигуры ещё нет заливки, стиля линии и сдвига кружка
+        Directory.CreateDirectory(_dir);
+        var captureId = Guid.NewGuid();
+        var shapeId = Guid.NewGuid();
+        File.WriteAllText(Path.Combine(_dir, "session.json"), $$"""
+            [
+              {
+                "id": "{{captureId}}",
+                "pixelWidth": 100,
+                "pixelHeight": 50,
+                "screenBounds": { "x": 10, "y": 20, "width": 100, "height": 50, "right": 110, "bottom": 70 },
+                "annotations": [
+                  {
+                    "id": "{{shapeId}}",
+                    "kind": "Rectangle",
+                    "points": [ { "x": 1, "y": 2 }, { "x": 30, "y": 40 } ],
+                    "color": "#E53935",
+                    "thickness": 4,
+                    "text": null,
+                    "note": "рамка"
+                  }
+                ],
+                "snapshotNote": "",
+                "isSent": false,
+                "createdAt": "1970-01-01T00:00:00+00:00"
+              }
+            ]
+            """);
+        File.WriteAllBytes(Path.Combine(_dir, captureId + ".png"), Png1x1);
+
+        var shape = Assert.Single(Assert.Single(new SessionStore(_dir).Load()).Annotations);
+        Assert.Equal((shapeId, AnnotationKind.Rectangle, "#E53935", 4d, "рамка"), (shape.Id, shape.Kind, shape.Color, shape.Thickness, shape.Note));
+        Assert.Equal([new PointD(1, 2), new PointD(30, 40)], shape.Points.ToArray());
+        Assert.Equal((FillMode.None, (string?)null, LineStyle.Solid, (PointD?)null), (shape.Fill, shape.FillColor, shape.LineStyle, shape.PinOffset));
+    }
+
+    [Fact]
+    public void Stage2Fields_RoundTrip()
+    {
+        var store = new SessionStore(_dir);
+        var ellipse = Shape(AnnotationKind.Ellipse, note: "овал", points: [new(1, 2), new(30, 40)]) with
+        {
+            Fill = FillMode.Blur, FillColor = "#43A047", LineStyle = LineStyle.Dashed, PinOffset = new PointD(5, -3),
+        };
+        var curved = Shape(AnnotationKind.CurvedArrow, points: [new(0, 0), new(50, 40), new(100, 0)]);
+        var original = Cap(false, ellipse, curved);
+        store.WriteSourceImage(original.Id, Png1x1);
+        store.Save([original]);
+
+        var loaded = Assert.Single(new SessionStore(_dir).Load()).Annotations;
+        Assert.Equal((FillMode.Blur, "#43A047", LineStyle.Dashed, (PointD?)new PointD(5, -3)),
+            (loaded[0].Fill, loaded[0].FillColor, loaded[0].LineStyle, loaded[0].PinOffset));
+        Assert.Equal(AnnotationKind.CurvedArrow, loaded[1].Kind);
+        Assert.Equal(curved.Points.ToArray(), loaded[1].Points.ToArray());
+    }
+
+    [Fact]
     public void SaveThenLoad_RoundTrips()
     {
         var store = new SessionStore(_dir);

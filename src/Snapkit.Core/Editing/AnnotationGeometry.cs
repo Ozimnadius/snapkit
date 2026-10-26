@@ -15,6 +15,23 @@ public static class AnnotationGeometry
 
     public static double TextFontSize(double thickness) => 12 + thickness * 2;
 
+    /// <summary>Сколько точек нужно фигуре: изогнутой стрелке — три, тексту и кружку — одна, остальным — две.</summary>
+    public static int MinPoints(AnnotationKind kind) => kind switch
+    {
+        AnnotationKind.CurvedArrow => 3,
+        AnnotationKind.Text or AnnotationKind.Pin => 1,
+        _ => 2,
+    };
+
+    /// <summary>Фигуру можно рисовать: точек хватает, координаты и толщина — обычные числа.</summary>
+    public static bool IsWellFormed(Annotation a)
+        => Enum.IsDefined(a.Kind)
+           && !a.Points.IsDefault
+           && a.Points.Length >= MinPoints(a.Kind)
+           && a.Points.All(p => double.IsFinite(p.X) && double.IsFinite(p.Y))
+           && double.IsFinite(a.Thickness) && a.Thickness > 0
+           && (a.PinOffset is not { } offset || (double.IsFinite(offset.X) && double.IsFinite(offset.Y)));
+
     /// <summary>Центр кружка заметки: угол рамки, начало стрелки, точка привязки текста или пина.</summary>
     public static PointD PinCenter(Annotation a) => a.Kind switch
     {
