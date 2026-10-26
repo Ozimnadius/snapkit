@@ -37,6 +37,9 @@ public partial class StripWindow : Window
     public event EventHandler? CopyPackageRequested;
     public event EventHandler? ExitRequested;
     public event EventHandler<bool>? TopmostToggled;
+    public event EventHandler<Guid>? ToggleSentRequested;
+    public event EventHandler? ResendLastRequested;
+    public event EventHandler? ResendAllRequested;
     public event EventHandler? Moved;
 
     private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -59,6 +62,11 @@ public partial class StripWindow : Window
         if (sender is FrameworkElement { Tag: Guid id }) OpenCaptureRequested?.Invoke(this, id);
     }
 
+    private void Badge_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Guid id }) ToggleSentRequested?.Invoke(this, id);
+    }
+
     private void Delete_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { Tag: Guid id }) DeleteCaptureRequested?.Invoke(this, id);
@@ -79,6 +87,12 @@ public partial class StripWindow : Window
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Вставить изображение из буфера", PasteImageRequested));
         menu.Items.Add(Item("Копировать пакет", CopyPackageRequested));
+        var resendLast = Item("Повторить последнюю вставку", ResendLastRequested);
+        resendLast.IsEnabled = ViewModel.CanResendLast;
+        menu.Items.Add(resendLast);
+        var resendAll = Item("Вся лента в пачку", ResendAllRequested);
+        resendAll.IsEnabled = !ViewModel.IsEmpty;
+        menu.Items.Add(resendAll);
         menu.Items.Add(Item("Очистить ленту", ClearRequested));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Выйти", ExitRequested));

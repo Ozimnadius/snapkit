@@ -23,6 +23,7 @@ public sealed class StripViewModel : ObservableObject
     private bool _showSoftWarning;
     private bool _packageDisplaced;
     private bool _isTopmost = true;
+    private bool _canResendLast;
     private string _emptyHint = "Нажми Print Screen или «Новый снимок»";
 
     public ObservableCollection<CaptureCardViewModel> Cards { get; } = [];
@@ -35,6 +36,9 @@ public sealed class StripViewModel : ObservableObject
     /// <summary>В ленте есть неотправленные снимки, но буфер обмена занят чужими данными.</summary>
     public bool PackageDisplaced { get => _packageDisplaced; set => Set(ref _packageDisplaced, value); }
     public bool IsTopmost { get => _isTopmost; set => Set(ref _isTopmost, value); }
+
+    /// <summary>Есть последняя вставка по Ctrl+V — пункт «Повторить последнюю вставку» доступен.</summary>
+    public bool CanResendLast { get => _canResendLast; set => Set(ref _canResendLast, value); }
 
     public string SoftWarningText { get; } = $"Чаты обычно принимают до {SessionModel.SoftWarningUnsent} картинок за раз";
 

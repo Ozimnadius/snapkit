@@ -69,4 +69,30 @@ public class StripViewModelTests
         Assert.True(vm.IsEmpty);
         Assert.Equal(0, vm.UnsentCount);
     });
+
+    [Fact]
+    public void Card_BadgeToolTip_Unsent() => StaRunner.Run(() =>
+    {
+        var vm = new StripViewModel();
+        vm.Refresh([Cap()], (_, _) => Thumb());
+        Assert.Equal("В пачке — щёлкните, чтобы убрать", vm.Cards[0].BadgeToolTip);
+    });
+
+    [Fact]
+    public void Card_BadgeToolTip_Sent() => StaRunner.Run(() =>
+    {
+        var vm = new StripViewModel();
+        vm.Refresh([Cap(sent: true)], (_, _) => Thumb());
+        Assert.Equal("Отправлен — щёлкните, чтобы вставить ещё раз", vm.Cards[0].BadgeToolTip);
+    });
+
+    [Fact]
+    public void Refresh_SentCardHasNoLetter() => StaRunner.Run(() =>
+    {
+        var vm = new StripViewModel();
+        vm.Refresh([Cap(), Cap(sent: true), Cap()], (_, _) => Thumb());
+        Assert.Equal(["A", null, "B"], vm.Cards.Select(c => c.Letter));
+        Assert.True(vm.Cards[1].IsSent);
+        Assert.Equal("Отправлен — щёлкните, чтобы вставить ещё раз", vm.Cards[1].BadgeToolTip);
+    });
 }
