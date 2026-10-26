@@ -71,6 +71,56 @@ public sealed class SessionModel
         RaiseChanged();
     }
 
+    /// <summary>Есть место для нового снимка: лента не полна или в ней есть отправленный, которого можно вытеснить.</summary>
+    public bool CanMakeRoom => !IsFull || _captures.Any(c => c.IsSent);
+
+    /// <summary>Отметка «отправлен» одного снимка (щелчок по значку карточки). Неизвестный Id — ничего.</summary>
+    public void SetSent(Guid id, bool isSent)
+    {
+        var index = _captures.FindIndex(c => c.Id == id);
+        if (index < 0 || _captures[index].IsSent == isSent) return;
+        _captures[index] = _captures[index] with { IsSent = isSent };
+        RaiseChanged();
+    }
+
+    /// <summary>«Повторить последнюю вставку»: эти снимки — неотправленные, остальные — отправленные. Отсутствующие Id пропускаются.</summary>
+    public void ResendOnly(IReadOnlyCollection<Guid> ids)
+    {
+        var set = ids.ToHashSet();
+        for (var i = 0; i < _captures.Count; i++) _captures[i] = _captures[i] with { IsSent = !set.Contains(_captures[i].Id) };
+        RaiseChanged();
+    }
+
+    /// <summary>Поставить снимок перед карточкой с номером slot в нынешнем порядке (slot == Count — в конец).</summary>
+    public void MoveBefore(Guid id, int slot)
+    {
+        var index = _captures.FindIndex(c => c.Id == id);
+        if (index < 0) return;
+        slot = Math.Clamp(slot, 0, _captures.Count);
+        // После изъятия карточки все места за ней сдвигаются на одно
+        var target = slot > index ? slot - 1 : slot;
+        if (target == index) return;
+        var capture = _captures[index];
+        _captures.RemoveAt(index);
+        _captures.Insert(target, capture);
+        RaiseChanged();
+    }
+
+    /// <summary>Вставить снимок на место index (обрезается до 0…Count). Бросает, если лента полна.</summary>
+    public void Insert(int index, Capture capture)
+    {
+        if (IsFull) throw new InvalidOperationException($"В ленте максимум {MaxCaptures} снимков.");
+        _captures.Insert(Math.Clamp(index, 0, _captures.Count), capture);
+        RaiseChanged();
+    }
+
+    /// <summary>Удалить отправленный снимок с самым ранним CreatedAt; null — отправленных нет.</summary>
+    public Capture? EvictOldestSent()
+    {
+        var oldest = _captures.Where(c => c.IsSent).MinBy(c => c.CreatedAt);
+        return oldest is null ? null : Remove(oldest.Id);
+    }
+
     public void Load(IEnumerable<Capture> captures)
     {
         _captures.Clear();
