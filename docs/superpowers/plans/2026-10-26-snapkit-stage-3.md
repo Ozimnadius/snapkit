@@ -402,21 +402,141 @@ public event EventHandler? StripFull;                   // снимок не н�
 
 ---
 
-### Задача 8: README, список приёмки, полный прогон
+### Задача 8: Вид ленты как в Snapik
+
+Добавлена 26.10 по просьбе пользователя (описание этапа, раздел 2.10).
+
+**Файлы:**
+- Изменить: `src/Snapkit.App/Strip/StripViewModel.cs` (размеры), `src/Snapkit.App/Strip/StripWindow.xaml`,
+  `src/Snapkit.App/App.xaml.cs` (`StripWidth`, `ThumbnailWidth`)
+- Тесты: `tests/Snapkit.App.Tests/StripWindowTests.cs` (создать; `UiApp.Run` — нужна тема), `tests/Snapkit.App.Tests/StripViewModelTests.cs`
+
+**Интерфейсы:**
+- Меняет: `StripViewModel.CardHeight = 96`, `StripViewModel.StripeHeight = 26`; ширина окна ленты 210,
+  `App.StripWidth = 210`, `App.ThumbnailWidth` = ширина карточки внутри окна (окно минус поля).
+- Карточка: миниатюра во всю карточку (`UniformToFill`, сверху), **без тёмной градиентной плашки**;
+  буква/галочка и значок заметок — на полупрозрачной тёмной подложке-«таблетке» слева сверху;
+  кнопки «Сохранить», «Копировать», «Удалить» — на такой же подложке справа, видны при наведении;
+  стопка — в одной скруглённой подложке (`PanelRaisedBrush`); наведение поднимает карточку
+  (`Panel.ZIndex`), даёт рамку цвета акцента и тень (`DropShadowEffect`).
+
+- [ ] **Шаг 1: Тесты:**
+  - `Stripe_ShowsSnapshot` (`UiApp`): `StripWindow` с двумя снимками, миниатюры — сплошной красный
+    `#FF0000`; разметить содержимое окна (`Measure`/`Arrange` корня), отрисовать в `RenderTargetBitmap`;
+    точка на полосе первой карточки правее подложки значков (x — 3/4 ширины карточки, y — середина полосы)
+    — красная (R > 200, G < 60, B < 60);
+  - `Stack_IsCompact`: `CardHeight == 96`, `StripeHeight == 26`.
+- [ ] **Шаг 2: Запустить — падают** (полоса сейчас тёмная, размеры старые).
+- [ ] **Шаг 3: Реализовать** разметку карточки и размеры; `DropSlot` берёт новые размеры сам (константы).
+- [ ] **Шаг 4: Запустить — зелёные;** весь набор без Clipboard/Desktop — зелёный.
+- [ ] **Шаг 5: Коммит** `feat(strip): вид ленты как в Snapik — полоски со снимком и компактная стопка`.
+
+---
+
+### Задача 9: Капсула — свёрнутая лента
+
+**Файлы:**
+- Создать: `src/Snapkit.Core/Session/StripPresence.cs`, `src/Snapkit.App/Strip/CapsuleWindow.xaml(.cs)`
+- Изменить: `src/Snapkit.Core/Settings/AppSettings.cs`, `src/Snapkit.App/Strip/StripWindow.xaml.cs` («Свернуть»),
+  `src/Snapkit.App/App.xaml.cs`
+- Тесты: `tests/Snapkit.Core.Tests/StripPresenceTests.cs`, `tests/Snapkit.Core.Tests/SettingsStoreTests.cs`
+
+**Интерфейсы:**
+- Создаёт:
+```csharp
+public enum StripView { Hidden, Strip, Capsule }
+/// <summary>Что показывать: развёрнутую ленту, капсулу или ничего (разделы 2.8 и 2.11 описания).</summary>
+public static class StripPresence
+{
+    public static StripView OnStartup(bool showStrip, bool collapsed);          // !show → Hidden; collapsed → Capsule; иначе Strip
+    public static StripView AfterNewCapture(StripView current, bool showStrip); // show: Capsule остаётся, иначе Strip; !show: current
+    public static StripView OnMinimize(bool showStrip);                         // show → Capsule, иначе Hidden
+    public static StripView OnShowStripChanged(bool showStrip, bool collapsed); // !show → Hidden; collapsed → Capsule; иначе Strip
+}
+// AppSettings — в конец: bool StripCollapsed = false, double? CapsuleLeft = null, double? CapsuleTop = null
+// CapsuleWindow(StripViewModel model) — показывает model.UnsentCount; события:
+public event EventHandler? NewCaptureRequested;   // кнопка с фотоаппаратом
+public event EventHandler? ExpandRequested;       // «˄»
+public event EventHandler? Moved;                 // перетащили за саму капсулу
+// StripWindow
+public event EventHandler? MinimizeRequested;     // вместо прямого Hide() в Minimize_Click
+```
+- `App`: одно место применяет `StripView` (`ApplyStripView(StripView)`: показать/спрятать ленту и капсулу,
+  сохранить `StripCollapsed`); на время снимка капсула прячется вместе с лентой (`HideChrome`/`RestoreChrome`);
+  «Закрыть» → очистка, `StripCollapsed = false`, `Hidden`; щелчок по значку у часов — показать или спрятать
+  развёрнутую ленту, как сейчас. Капсула по умолчанию — у правого края рабочей области на высоте ленты;
+  позиция — `CapsuleLeft/CapsuleTop`.
+- [ ] **Шаг 1: Тесты:** `OnStartup` — 3 случая; `AfterNewCapture(Capsule, true) == Capsule`, `AfterNewCapture(Hidden, true) == Strip`,
+  `AfterNewCapture(Hidden, false) == Hidden`, `AfterNewCapture(Strip, false) == Strip`; `OnMinimize(true) == Capsule`,
+  `OnMinimize(false) == Hidden`; `OnShowStripChanged` — 3 случая; `Load_OldSettingsWithoutCollapsed_IsExpanded`.
+- [ ] **Шаг 2: Запустить — падают.**
+- [ ] **Шаг 3: Реализовать** `StripPresence`, настройки, `CapsuleWindow` (тема — из `Theme.xaml`: `PanelBrush`,
+  `AccentBrush`; высота около 40 DIP, скругление — половина высоты), связи в `App` (заменить прямые
+  `Show/Hide` ленты в `OnCaptureAdded`, `SetShowStrip`, запуске на `ApplyStripView`).
+- [ ] **Шаг 4: Запустить — зелёные;** весь набор без Clipboard/Desktop — зелёный.
+- [ ] **Шаг 5: Коммит** `feat(strip): капсула — свёрнутая лента со счётчиком и кнопкой снимка`.
+
+---
+
+### Задача 10: Звуки
+
+**Файлы:**
+- Создать: `src/Snapkit.Core/Sounds/SoundSynth.cs`, `src/Snapkit.App/Notifications/Sounds.cs`
+- Изменить: `src/Snapkit.Core/Settings/AppSettings.cs`, `src/Snapkit.App/Shell/TrayIcon.cs`,
+  `src/Snapkit.App/Capturing/CaptureController.cs`, `src/Snapkit.App/App.xaml.cs`
+- Тесты: `tests/Snapkit.Core.Tests/SoundSynthTests.cs`
+
+**Интерфейсы:**
+- Создаёт:
+```csharp
+public enum SoundKind { Shutter, Tick, Chime }
+public static class SoundSynth
+{
+    public const int SampleRate = 44100;
+    /// <summary>WAV (PCM 16 бит, моно, 44,1 кГц) звука; синтез — без чужих файлов.</summary>
+    public static byte[] Wav(SoundKind kind);
+}
+public static class Sounds               // App
+{
+    public static bool Enabled { get; set; }
+    public static void Play(SoundKind kind);   // в фоне, без ожидания; ошибки звука — только в журнал
+}
+// AppSettings — в конец: bool PlaySounds = true
+// TrayIcon: bool SoundsChecked { get; set; }; event EventHandler<bool>? SoundsToggled  — галочка «Звуки»
+// CaptureController: event EventHandler? ScreenCaptured — кадр экрана снят (перед выделением области)
+```
+- Звуки (решения плана): затвор — короткий шумовой щелчок с быстрым затуханием, до 0,2 с; «тик» — тихий
+  высокий тон около 1,6 кГц, до 0,08 с; сигнал — два мягких тона вверх (около 880 и 1320 Гц), до 0,5 с.
+  Громкость — не выше половины шкалы; начало и конец плавные (без щелчков).
+- `App`: `ScreenCaptured` → `Shutter`; `CaptureAdded` → `Tick`; после вставки со статусом
+  `CompletedVerified`/`CompletedUnverified` → `Chime`; галочка «Звуки» → `SaveSettings` и `Sounds.Enabled`.
+- [ ] **Шаг 1: Тесты** для каждого `SoundKind` (`[Theory]`): заголовок `RIFF`/`WAVE`, частота 44100, 16 бит, моно;
+  длительность в пределах выше; пик ≤ 16384; первые и последние 32 отсчёта по модулю < 1000;
+  `Load_OldSettingsWithoutPlaySounds_PlaysSounds`.
+- [ ] **Шаг 2: Запустить — падают.**
+- [ ] **Шаг 3: Реализовать** (`System.Media.SoundPlayer` из `MemoryStream`, плееры созданы заранее).
+- [ ] **Шаг 4: Запустить — зелёные;** весь набор без Clipboard/Desktop — зелёный.
+- [ ] **Шаг 5: Коммит** `feat(sound): свои звуки затвора, ленты и вставки`.
+
+---
+
+### Задача 11: README, CHANGELOG, список приёмки, полный прогон
 
 **Файлы:**
 - Изменить: `README.md` (раздел «Как пользоваться»: значок-переключатель, «Повторить последнюю
   вставку», «Вся лента в пачку», перетаскивание, «Сохранить снимок…», «Сохранить пакет…»,
-  импорт, «Показывать ленту», вытеснение старых отправленных)
+  импорт, «Показывать ленту», капсула, звуки, вытеснение старых отправленных);
+  `CHANGELOG.md` — раздел `## [0.3.0]` (без него релиз не выйдет)
 - Создать: `docs/superpowers/plans/2026-10-26-snapkit-stage-3-acceptance.md` — по образцу этапа 2:
   «Перед началом» (полный прогон, `build.ps1`) и проверки: 1) переключатель и вставка
   выбранных; 2) повтор последней вставки, в том числе остановленной Esc; 3) порядок
   перетаскиванием и буквы во вставке; 4) перетаскивание в Telegram/Проводник/браузер —
   файл с разметкой и размытием; 5) «Сохранить снимок…» и «Сохранить пакет…» (`prompt.md`,
   «Открыть папку»); 6) «Вернуть»; 7) импорт меню и перетаскиванием; 8) «Показывать ленту»
-  выкл/вкл, уведомление «Снимок A готов», лента возвращается после «Свернуть»; 9) 21-й снимок
-  вытесняет старый отправленный; «После приёмки» — слияние и v0.3.0 только с согласия.
+  выкл/вкл, уведомление «Снимок A готов»; 9) 21-й снимок вытесняет старый отправленный;
+  10) вид ленты рядом со Snapik; 11) капсула: свернуть, новый снимок, развернуть, перезапуск;
+  12) звуки и галочка «Звуки»; «После приёмки» — слияние и v0.3.0 только с согласия.
 
-- [ ] **Шаг 1:** README и список приёмки.
+- [ ] **Шаг 1:** README, CHANGELOG и список приёмки.
 - [ ] **Шаг 2:** полный прогон `dotnet test Snapkit.slnx` (с Clipboard и Desktop) — зелёный.
-- [ ] **Шаг 3: Коммит** `docs(stage-3): README и список приёмки`.
+- [ ] **Шаг 3: Коммит** `docs(stage-3): README, CHANGELOG и список приёмки`.
