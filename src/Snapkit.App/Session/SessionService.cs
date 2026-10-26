@@ -62,6 +62,17 @@ public sealed class SessionService(SessionStore store)
         Raise(SessionChangeKind.Updated, updated.Id);
     }
 
+    /// <summary>Снимок обрезали: новый исходник в памяти и на диске, модель обновлена.</summary>
+    public void UpdateCaptureImage(Capture updated, BitmapSource source)
+    {
+        var frozen = source.IsFrozen ? source : ImageCodecs.Normalize(source);
+        _sources[updated.Id] = frozen;
+        Model.Update(updated);
+        Enqueue(() => store.WriteSourceImage(updated.Id, ImageCodecs.EncodePng(frozen)));
+        Persist();
+        Raise(SessionChangeKind.Updated, updated.Id);
+    }
+
     public void Remove(Guid id)
     {
         if (Model.Remove(id) is null) return;

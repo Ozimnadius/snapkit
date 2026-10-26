@@ -57,7 +57,7 @@ public sealed class EditorSurface : UserControl
     private string? _fillColor = _lastFillColor;
     private LineStyle _lineStyle = _lastLineStyle;
 
-    private enum DragMode { None, Draw, Move, Handle, Pin }
+    private enum DragMode { None, Draw, Move, Handle, Pin, Crop }
 
     private PointD? _dragStart;
     private DragMode _drag;
@@ -142,6 +142,9 @@ public sealed class EditorSurface : UserControl
     public event EventHandler? Cancelled;
     public event EventHandler? CopyRequested;
 
+    /// <summary>Инструментом «Обрезать» выделили новую область снимка (в координатах монитора).</summary>
+    public event EventHandler<RectI>? CropRequested;
+
     /// <summary>Свои цвета из настроек и их сохранение (подключает CaptureController).</summary>
     public Func<string>? CustomColors { get; set; }
     public Action<string>? SaveCustomColors { get; set; }
@@ -154,9 +157,13 @@ public sealed class EditorSurface : UserControl
     private RectI Origin => new(0, 0, _region.Width, _region.Height);
     private double Scale => _context.Scale;
 
-    /// <summary>Разметка в координатах снимка — то, что уйдёт в ленту.</summary>
+    /// <summary>
+    /// Разметка в координатах снимка — то, что уйдёт в ленту. Кружки, оставшиеся за краем после
+    /// обрезки или уменьшения рамки, сдвигаются внутрь.
+    /// </summary>
     public ImmutableList<Annotation> CurrentAnnotations
-        => AnnotationGeometry.ShiftForRegionChange(_history.Current, Origin, _region);
+        => AnnotationGeometry.KeepPinsInside(AnnotationGeometry.ShiftForRegionChange(_history.Current, Origin, _region),
+            _region.Width, _region.Height);
 
     /// <summary>Пользователь поменял границы снимка маркерами.</summary>
     public void SetRegion(RectI region)
@@ -286,7 +293,10 @@ public sealed class EditorSurface : UserControl
                 }
                 break;
             case EditorTool.Crop:
-                // Обрезка подключается в задаче 11
+                _dragStart = p;
+                _drag = DragMode.Crop;
+                _canvas.CropPreview = new Rect(p.X, p.Y, 0, 0);
+                _canvas.CaptureMouse();
                 break;
             default:
                 if (KindOf(_tool) is not { } kind) break;
@@ -343,7 +353,11 @@ public sealed class EditorSurface : UserControl
             return;
         }
 
-        if (_drag != DragMode.Draw && _dragOriginal is { } original && _canvas.SelectedId is { } id)
+        if (_drag == DragMode.Crop)
+        {
+            _canvas.CropPreview = new Rect(new Point(start.X, start.Y), new Point(p.X, p.Y));
+        }
+        else if (_drag != DragMode.Draw && _dragOriginal is { } original && _canvas.SelectedId is { } id)
         {
             _canvas.Items = original.Select(a => a.Id != id ? a : _drag switch
             {
@@ -370,7 +384,18 @@ public sealed class EditorSurface : UserControl
         var p = ToMonitor(e.GetPosition(_canvas));
         _canvas.ReleaseMouseCapture();
 
-        if (_drag != DragMode.Draw && _dragOriginal is not null)
+        if (_drag == DragMode.Crop)
+        {
+            _canvas.CropPreview = null;
+            // Новая область — внутри текущей; слишком маленькая не принимается
+            var left = (int)Math.Round(Math.Max(Math.Min(start.X, p.X), _region.X));
+            var top = (int)Math.Round(Math.Max(Math.Min(start.Y, p.Y), _region.Y));
+            var right = (int)Math.Round(Math.Min(Math.Max(start.X, p.X), _region.Right));
+            var bottom = (int)Math.Round(Math.Min(Math.Max(start.Y, p.Y), _region.Bottom));
+            if (right - left >= MinShapeSize && bottom - top >= MinShapeSize)
+                CropRequested?.Invoke(this, new RectI(left, top, right - left, bottom - top));
+        }
+        else if (_drag != DragMode.Draw && _dragOriginal is not null)
         {
             // Каждое законченное перетаскивание — один шаг истории
             if (p != start) _history.Push(_canvas.Items.ToImmutableList());

@@ -46,6 +46,40 @@ public sealed class SessionServiceTests : IDisposable
     });
 
     [Fact]
+    public void UpdateCaptureImage_ReplacesSourceOnDiskAndInMemory() => StaRunner.Run(() =>
+    {
+        // Обрезали снимок из ленты: меньше картинка, сдвинулось место на экране
+        var service = new SessionService(new SessionStore(_dir));
+        var id = service.AddCapture(Image(100, 80), new RectI(10, 20, 100, 80), [], "");
+        var cropped = service.Model.Captures.Single() with { PixelWidth = 40, PixelHeight = 30, ScreenBounds = new RectI(30, 40, 40, 30) };
+
+        service.UpdateCaptureImage(cropped, Image(40, 30));
+        Assert.Equal((40, 30), (service.GetSource(id).PixelWidth, service.GetSource(id).PixelHeight));
+        service.FlushAsync().Wait();
+
+        var restored = new SessionService(new SessionStore(_dir));
+        Assert.Equal(1, restored.RestoreFromDisk());
+        var again = restored.Model.Captures.Single();
+        Assert.Equal((40, 30, new RectI(30, 40, 40, 30)), (again.PixelWidth, again.PixelHeight, again.ScreenBounds));
+        Assert.Equal((40, 30), (restored.GetSource(id).PixelWidth, restored.GetSource(id).PixelHeight));
+        restored.FlushAsync().Wait();
+    });
+
+    [Fact]
+    public void UpdateCaptureImage_RaisesUpdated() => StaRunner.Run(() =>
+    {
+        var service = new SessionService(new SessionStore(_dir));
+        var id = service.AddCapture(Image(100, 80), new RectI(10, 20, 100, 80), [], "");
+        var changes = new List<SessionChange>();
+        service.Changed += (_, c) => changes.Add(c);
+
+        service.UpdateCaptureImage(service.Model.Captures.Single() with { PixelWidth = 40, PixelHeight = 30 }, Image(40, 30));
+        service.FlushAsync().Wait();
+
+        Assert.Equal(new SessionChange(SessionChangeKind.Updated, id), Assert.Single(changes));
+    });
+
+    [Fact]
     public void RestoreFromDisk_LoadsSavedCaptures() => StaRunner.Run(() =>
     {
         var first = new SessionService(new SessionStore(_dir));

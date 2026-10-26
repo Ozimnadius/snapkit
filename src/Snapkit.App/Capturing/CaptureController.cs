@@ -131,16 +131,38 @@ public sealed partial class CaptureController(SessionService session, Action hid
         // больше экрана сдвинулась бы к его углу, а разметка встала бы не туда
         var editor = new EditorSurface(CreateContext(window, local, source, new PointD(local.X, local.Y), showSource: true,
             capture.Annotations, capture.SnapshotNote, letters[captureId], regionEditable: false));
-        editor.CopyRequested += (_, _) => CopyFromEditor(editor, source);
+        // Обрезка: какая часть исходника осталась (в его пикселях)
+        RectI? Cropped() => editor.Region == local
+            ? null
+            : new RectI(editor.Region.X - local.X, editor.Region.Y - local.Y, editor.Region.Width, editor.Region.Height);
+
+        editor.CopyRequested += (_, _) => CopyFromEditor(editor, Cropped() is { } part ? Crop(source, part) : source);
+        editor.CropRequested += (_, area) => ApplyCrop(window, editor, area);
         editor.Done += (_, result) =>
         {
             Close();
-            if (result.IsChanged)
+            if (Cropped() is { } crop)
+            {
+                // Обрезанный снимок: новая картинка, размер и место на экране
+                var bounds = capture.ScreenBounds;
+                session.UpdateCaptureImage(capture with
+                {
+                    PixelWidth = crop.Width,
+                    PixelHeight = crop.Height,
+                    ScreenBounds = new RectI(bounds.X + crop.X, bounds.Y + crop.Y, crop.Width, crop.Height),
+                    Annotations = result.Annotations,
+                    SnapshotNote = result.SnapshotNote,
+                }, Crop(source, crop));
+            }
+            else if (result.IsChanged)
+            {
                 session.UpdateCapture(capture with { Annotations = result.Annotations, SnapshotNote = result.SnapshotNote });
+            }
         };
         editor.Cancelled += (_, _) =>
         {
-            if (editor.IsChanged && MessageBox.Show(window, "Закрыть без сохранения? Изменения будут потеряны.", "Snapkit",
+            if ((editor.IsChanged || Cropped() is not null)
+                && MessageBox.Show(window, "Закрыть без сохранения? Изменения будут потеряны.", "Snapkit",
                     MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             {
                 return;
@@ -199,6 +221,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
             [], "", (char)('A' + session.Model.UnsentCount), regionEditable: true));
         editor.Done += (_, result) => CompleteNew(window, editor.Region, result);
         editor.CopyRequested += (_, _) => CopyFromEditor(editor, Crop(window.Frame, editor.Region));
+        editor.CropRequested += (_, area) => ApplyCrop(window, editor, area);
         editor.Cancelled += (_, _) =>
         {
             if (editor.IsChanged && MessageBox.Show(window, "Отменить снимок? Разметка будет потеряна.", "Snapkit",
@@ -213,6 +236,13 @@ public sealed partial class CaptureController(SessionService session, Action hid
         editor.SaveCustomColors = SaveCustomColors;
         window.ShowEditor(editor);
         Foreground.Activate(window);
+    }
+
+    /// <summary>Инструмент «Обрезать»: рамка окна и редактор встают на новую область.</summary>
+    private static void ApplyCrop(CaptureOverlayWindow window, EditorSurface editor, RectI area)
+    {
+        window.PresetRegion(area);
+        if (window.Region is { } region) editor.SetRegion(region);
     }
 
     private static BitmapSource Crop(BitmapSource frame, RectI region)

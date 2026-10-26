@@ -15,6 +15,10 @@ namespace Snapkit.App.Editor;
 internal sealed class EditorCanvas : FrameworkElement
 {
     private static readonly Pen SelectionPen = CreateSelectionPen();
+    private static readonly Brush CropShade = Palette.Brush("#000000", 0.5);
+
+    /// <summary>Рамка обрезки, которую сейчас тянут (в координатах монитора).</summary>
+    public Rect? CropPreview { get; set; }
 
     public int PixelWidth { get; set; }
     public int PixelHeight { get; set; }
@@ -61,6 +65,14 @@ internal sealed class EditorCanvas : FrameworkElement
         {
             var next = Items.Count(a => a.HasNote) + 1;
             AnnotationPainter.DrawPin(dc, AnnotationGeometry.PinCenter(pending), $"{Letter}{next}");
+        }
+
+        // Будущая обрезка: вне рамки затемнено, рамка пунктиром
+        if (CropPreview is { } crop)
+        {
+            var outer = new RectangleGeometry(new Rect(Offset.X, Offset.Y, PixelWidth, PixelHeight));
+            dc.DrawGeometry(CropShade, null, new CombinedGeometry(GeometryCombineMode.Exclude, outer, new RectangleGeometry(crop)));
+            dc.DrawRectangle(null, SelectionPen, crop);
         }
 
         if (SelectedId is { } id && Items.FirstOrDefault(a => a.Id == id) is { } selected)
