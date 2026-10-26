@@ -58,5 +58,8 @@ $shortcut.Description = 'Snapkit — снимки экрана с коммент
 $shortcut.Save()
 
 Write-Host '5/5 Запускаю Snapkit...' -ForegroundColor Cyan
-Start-Process -FilePath $exe -WorkingDirectory $installDir
+# Через Проводник, а не напрямую: если сборку запустили из упакованного приложения (например,
+# из терминала Claude Desktop), Windows подменяет AppData для всех его дочерних процессов,
+# и Snapkit работал бы со своими отдельными лентой, настройками и журналом
+Start-Process -FilePath explorer.exe -ArgumentList "`"$exe`""
 Write-Host 'Готово.' -ForegroundColor Green
