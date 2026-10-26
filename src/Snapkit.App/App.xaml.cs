@@ -486,9 +486,10 @@ public partial class App : Application
     /// </summary>
     private void OnSessionChangedForClipboard(SessionChange change)
     {
-        var republish = ClipboardRepublish.After(change.Kind, change.CaptureId is not null, _session.Model.UnsentCount > 0,
+        var action = ClipboardRepublish.After(change.Kind, change.CaptureId is not null, _session.Model.UnsentCount > 0,
             stripPackageInClipboard: IsPackageCurrent() && _publisher.IsStripPackage);
-        if (republish) RunClipboard(_publisher.PublishPackageAsync);
+        if (action == ClipboardAction.Capture && change.CaptureId is { } id) RunClipboard(() => _publisher.PublishCaptureAsync(id));
+        else if (action == ClipboardAction.Package) RunClipboard(_publisher.PublishPackageAsync);
     }
 
     /// <summary>Пачку поменяли с ленты — пакет снова в буфер, и следующий Ctrl+V в любом окне вставит её.</summary>

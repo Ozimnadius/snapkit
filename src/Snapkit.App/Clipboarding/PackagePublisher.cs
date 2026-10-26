@@ -74,13 +74,17 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
         Toasts.Show($"Пакет скопирован: {count}. Нажмите Ctrl+V в чате");
     }
 
-    /// <summary>Один снимок из ленты — картинка и его комментарии.</summary>
+    /// <summary>Один снимок из ленты — картинка и его комментарии (кнопка «Копировать снимок»).</summary>
     public async Task CopyCaptureAsync(Guid id)
     {
         if (session.Model.Captures.All(c => c.Id != id)) return;
-        await PublishAsync(new SingleSource(id));
+        await PublishCaptureAsync(id);
         Toasts.Show("Снимок скопирован. Нажмите Ctrl+V в чате");
     }
+
+    /// <summary>Один снимок в буфер без сообщения — после «Готово» в редакторе.</summary>
+    public Task PublishCaptureAsync(Guid id)
+        => session.Model.Captures.Any(c => c.Id == id) ? PublishAsync(new SingleSource(id)) : Task.CompletedTask;
 
     /// <summary>Снимок из редактора (Ctrl+Shift+C), которого ещё нет в ленте, — картинка и комментарии.</summary>
     public Task CopyDraftAsync(BitmapSource source, ImmutableList<Annotation> annotations, string snapshotNote)
