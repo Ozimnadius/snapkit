@@ -21,4 +21,6 @@ public sealed record AppSettings(
     // Лента свёрнута в капсулу — и после перезапуска появится капсулой; где стоит капсула
     bool StripCollapsed = false,
     double? CapsuleLeft = null,
-    double? CapsuleTop = null);
+    double? CapsuleTop = null,
+    // Звуки затвора, ленты и вставки (громкость — в окне настроек этапа 4)
+    bool PlaySounds = true);

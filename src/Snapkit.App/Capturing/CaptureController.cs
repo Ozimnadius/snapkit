@@ -44,6 +44,9 @@ public sealed partial class CaptureController(SessionService session, Action hid
     /// <summary>Снимок не начат: в ленте нет места — все снимки неотправленные.</summary>
     public event EventHandler? StripFull;
 
+    /// <summary>Кадр экрана снят (перед выделением области) — время щелчка затвора.</summary>
+    public event EventHandler? ScreenCaptured;
+
     public void StartNewCapture()
     {
         if (IsOpen) return;
@@ -71,6 +74,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
             Toasts.Error("Не удалось снять экран");
             return;
         }
+        ScreenCaptured?.Invoke(this, EventArgs.Empty);
 
         foreach (var (monitor, frame) in frames)
         {
