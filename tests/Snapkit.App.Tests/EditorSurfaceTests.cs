@@ -36,7 +36,8 @@ public class EditorSurfaceTests
 
     private static void Press(EditorSurface surface, Key key)
     {
-        using var source = new HwndSource(new HwndSourceParameters("Snapkit.Tests"));
+        // Окно-источник нажатия без WS_VISIBLE: видимое забрало бы фокус у тестов вставки, идущих параллельно
+        using var source = new HwndSource(new HwndSourceParameters("Snapkit.Tests") { WindowStyle = 0 });
         surface.HandleKey(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, key) { RoutedEvent = Keyboard.KeyDownEvent });
     }
 
