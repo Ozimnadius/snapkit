@@ -241,6 +241,17 @@ public partial class App : Application
         _strip.DragFileFor = DragFileFor;
         _strip.SaveCaptureRequested += (_, id) => SaveCapture(id);
         _strip.SavePackageRequested += (_, _) => SavePackage();
+        _strip.FilesDropped += (_, files) => ImportImages(files);
+        _strip.ImportFileRequested += (_, _) =>
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Импортировать картинку",
+                Filter = "Изображения|*.png;*.jpg;*.jpeg",
+                Multiselect = true,
+            };
+            if (dialog.ShowDialog(_strip) == true) ImportImages(dialog.FileNames);
+        };
         _strip.TopmostToggled += (_, topmost) =>
         {
             _stripModel.IsTopmost = topmost;
@@ -569,12 +580,47 @@ public partial class App : Application
             return;
         }
 
-        // У картинки из буфера нет места на экране — считаем, что она по центру основного монитора
+        AddImportedImage(image);
+        Toasts.Show("Изображение добавлено.");
+    }
+
+    /// <summary>Картинки из файлов (меню или перетаскивание из Проводника) — новыми снимками по порядку.</summary>
+    private void ImportImages(IReadOnlyList<string> paths)
+    {
+        var files = paths.Where(p => Path.GetExtension(p).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg").ToList();
+        if (files.Count == 0)
+        {
+            Toasts.Show("Можно добавить только картинки PNG и JPEG.");
+            return;
+        }
+        var added = 0;
+        foreach (var file in files)
+        {
+            // Места нет — оставшиеся файлы пропускаются
+            if (!_session.Model.CanMakeRoom) break;
+            try
+            {
+                AddImportedImage(ImageCodecs.DecodeImage(File.ReadAllBytes(file)));
+                added++;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                Log.Error($"импорт файла {Path.GetFileName(file)}", ex);
+            }
+        }
+        var skipped = files.Count - added;
+        Toasts.Show(skipped == 0
+            ? $"Добавлено снимков: {added}"
+            : $"Добавлено снимков: {added}, не поместилось или не читается: {skipped}");
+    }
+
+    /// <summary>У картинки извне нет места на экране — считаем, что она по центру основного монитора.</summary>
+    private void AddImportedImage(BitmapSource image)
+    {
         var monitor = Forms.Screen.PrimaryScreen!.Bounds;
         var bounds = new RectI(monitor.X + (monitor.Width - image.PixelWidth) / 2, monitor.Y + (monitor.Height - image.PixelHeight) / 2,
             image.PixelWidth, image.PixelHeight);
         _session.AddCapture(image, bounds, [], "");
-        Toasts.Show("Изображение добавлено.");
     }
 
     private static BitmapSource? ReadClipboardImage()

@@ -58,4 +58,30 @@ public class ImageCodecsTests
         image.CopyPixels(buffer, image.PixelWidth * 4, 0);
         return buffer;
     }
+
+    [Fact]
+    public void DecodeImage_Jpeg_IsBgra32At96Dpi() => StaRunner.Run(() =>
+    {
+        var source = BitmapSource.Create(30, 20, 144, 144, PixelFormats.Bgr24, null, new byte[30 * 20 * 3], 30 * 3);
+        var encoder = new JpegBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(source));
+        using var stream = new System.IO.MemoryStream();
+        encoder.Save(stream);
+
+        var image = ImageCodecs.DecodeImage(stream.ToArray());
+
+        Assert.Equal((30, 20, PixelFormats.Bgra32, 96.0), (image.PixelWidth, image.PixelHeight, image.Format, image.DpiX));
+        Assert.True(image.IsFrozen);
+    });
+
+    [Fact]
+    public void DecodeImage_Png_KeepsSize() => StaRunner.Run(() =>
+    {
+        var image = ImageCodecs.DecodeImage(ImageCodecs.EncodePng(RedOverBlue()));
+        Assert.Equal((3, 2), (image.PixelWidth, image.PixelHeight));
+    });
+
+    [Fact]
+    public void DecodeImage_Garbage_Throws() => StaRunner.Run(() =>
+        Assert.Throws<NotSupportedException>(() => ImageCodecs.DecodeImage([1, 2, 3, 4, 5, 6, 7, 8])));
 }

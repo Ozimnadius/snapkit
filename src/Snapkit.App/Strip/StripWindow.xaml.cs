@@ -58,6 +58,8 @@ public partial class StripWindow : Window
     public event EventHandler<(Guid Id, int Slot)>? ReorderRequested;
     public event EventHandler<Guid>? SaveCaptureRequested;
     public event EventHandler? SavePackageRequested;
+    public event EventHandler? ImportFileRequested;
+    public event EventHandler<string[]>? FilesDropped;
 
     private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -114,7 +116,10 @@ public partial class StripWindow : Window
 
     private void Window_DragOver(object sender, DragEventArgs e)
     {
-        e.Effects = e.Data.GetDataPresent(CaptureIdFormat) ? DragDropEffects.Move : DragDropEffects.None;
+        // Своя карточка — перестановка; файлы из Проводника — импорт картинок
+        e.Effects = e.Data.GetDataPresent(CaptureIdFormat) ? DragDropEffects.Move
+            : e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy
+            : DragDropEffects.None;
         e.Handled = true;
     }
 
@@ -126,6 +131,10 @@ public partial class StripWindow : Window
             var slot = StripLayout.DropSlot(e.GetPosition(CardsList).Y, ViewModel.Cards.Count,
                 StripViewModel.CardHeight, StripViewModel.StripeHeight);
             ReorderRequested?.Invoke(this, (id, slot));
+        }
+        else if (e.Data.GetData(DataFormats.FileDrop) is string[] files)
+        {
+            FilesDropped?.Invoke(this, files);
         }
         e.Handled = true;
     }
@@ -167,6 +176,7 @@ public partial class StripWindow : Window
         var menu = new ContextMenu { PlacementTarget = MoreButton, Placement = PlacementMode.Bottom };
         menu.Items.Add(topmost);
         menu.Items.Add(new Separator());
+        menu.Items.Add(Item("Импортировать файл…", ImportFileRequested));
         menu.Items.Add(Item("Вставить изображение из буфера", PasteImageRequested));
         menu.Items.Add(Item("Копировать пакет", CopyPackageRequested));
         var resendLast = Item("Повторить последнюю вставку", ResendLastRequested);

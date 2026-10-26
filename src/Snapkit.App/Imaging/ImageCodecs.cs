@@ -26,6 +26,24 @@ public static class ImageCodecs
         return Normalize(decoder.Frames[0]);
     }
 
+    /// <summary>
+    /// Картинка из файла (PNG, JPEG и другие форматы Windows) → Bgra32, 96 DPI; прозрачность PNG сохраняется.
+    /// Не картинка — NotSupportedException.
+    /// </summary>
+    public static BitmapSource DecodeImage(byte[] data)
+    {
+        try
+        {
+            using var stream = new MemoryStream(data);
+            var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+            return Normalize(decoder.Frames[0]);
+        }
+        catch (FileFormatException ex)
+        {
+            throw new NotSupportedException("Файл не читается как картинка", ex);
+        }
+    }
+
     /// <summary>BITMAPINFOHEADER + пиксели 32 bpp BI_RGB, строки снизу вверх (формат CF_DIB).</summary>
     public static byte[] EncodeDib(BitmapSource image)
     {
