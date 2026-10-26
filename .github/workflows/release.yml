@@ -1,5 +1,6 @@
 # Релиз по метке версии: git tag v0.1.0 && git push origin v0.1.0
-# Тесты → один Snapkit.exe (версия из метки) → релиз на GitHub с этим файлом.
+# Что нового (раздел версии из CHANGELOG.md) → тесты → один Snapkit.exe (версия из метки) →
+# релиз на GitHub с этим файлом. Без раздела в CHANGELOG.md релиз не выходит.
 name: Релиз
 
 on:
@@ -15,6 +16,18 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+
+      - name: Что нового из CHANGELOG.md
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          $changelog = Get-Content CHANGELOG.md -Raw -Encoding utf8
+          $pattern = '(?ms)^## \[' + [regex]::Escape($version) + '\][^\r\n]*\r?\n(.*?)(?=^## \[|\z)'
+          $match = [regex]::Match($changelog, $pattern)
+          if (-not $match.Success -or $match.Groups[1].Value.Trim().Length -eq 0) {
+            throw "В CHANGELOG.md нет раздела «## [$version]» — опишите, что изменилось, и поставьте метку заново"
+          }
+          Set-Content -Path changes.md -Value $match.Groups[1].Value.Trim() -Encoding utf8
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -46,5 +59,6 @@ jobs:
           SHA-256 файла Snapkit.exe: ``$hash``
           "@
           $notes = ($notes -split "`n" | ForEach-Object { $_.Trim() }) -join "`n"
-          Set-Content -Path release-notes.md -Value $notes -Encoding utf8
+          $changes = Get-Content changes.md -Raw -Encoding utf8
+          Set-Content -Path release-notes.md -Value ($changes.Trim() + "`n`n---`n`n## Установка`n`n" + $notes) -Encoding utf8
           gh release create '${{ github.ref_name }}' $exe --title 'Snapkit ${{ github.ref_name }}' --notes-file release-notes.md
