@@ -195,6 +195,12 @@ public sealed class EditorSurface : UserControl
         var shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
 
+        // Enter в выборе цвета — «Выбрать», а не «Готово»: после ползунка фокус не в поле кода
+        if (key == Key.Enter && _colorPicker is { } picker)
+        {
+            picker.ChooseTyped();
+            return true;
+        }
         // Открытые подсказка, выбор цвета и пипетка закрываются по Esc и не отменяют снимок
         if (key == Key.Escape && (_shortcuts is not null || _colorPicker is not null || _pipette is not null))
         {
@@ -231,6 +237,8 @@ public sealed class EditorSurface : UserControl
         CommitText();
         CloseNote(save: true);
         _tool = _lastTool = tool;
+        // Передумали брать цвет пипеткой: следующий щелчок рисует новым инструментом
+        _pipette = null;
         if (EditorKeys.GroupOf(tool) is var group and not ToolGroup.None) _lastVariant[group] = tool;
         if (tool != EditorTool.Select) _canvas.SelectedId = null;
         Refresh();

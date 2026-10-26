@@ -80,7 +80,8 @@ public partial class ColorPickerPopup : UserControl
 
     private void Choose_Click(object sender, RoutedEventArgs e) => ChooseTyped();
 
-    private void ChooseTyped()
+    /// <summary>Выбрать цвет из поля кода — его выставляют и ползунки (кнопка «Выбрать», Enter).</summary>
+    public void ChooseTyped()
     {
         if (HexColor.TryNormalize(HexBox.Text, out var hex)) ColorChosen?.Invoke(this, (hex, true));
         else HexBox.Text = "";
