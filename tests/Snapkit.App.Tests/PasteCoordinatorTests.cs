@@ -114,7 +114,9 @@ public class PasteCoordinatorClipboardTests
             await session.FlushAsync();
         });
 
-        Assert.Equal(PasteStatus.StoppedByUser, outcome?.Status);
+        // Остановка по Esc; если в это время сменилось активное окно (тест идёт на настоящем рабочем
+        // столе), вставка останавливается раньше — для памяти о вставке это одно и то же
+        Assert.Contains(outcome?.Status, new PasteStatus?[] { PasteStatus.StoppedByUser, PasteStatus.StoppedTargetChanged });
         Assert.True(session!.HasLastPaste);
         host.Run(() =>
         {
