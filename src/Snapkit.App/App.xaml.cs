@@ -58,11 +58,19 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += (_, args) => Log.Error("необработанное исключение", (Exception)args.ExceptionObject);
 
-        if (!SingleInstance.TryAcquire(() => Dispatcher.BeginInvoke(() =>
-            {
-                Log.Info("Повторный запуск Snapkit — показываю ленту");
-                ShowStrip();
-            })))
+        if (TryInstallItself()) return;
+
+        if (!SingleInstance.TryAcquire(
+                () => Dispatcher.BeginInvoke(() =>
+                {
+                    Log.Info("Повторный запуск Snapkit — показываю ленту");
+                    ShowStrip();
+                }),
+                () => Dispatcher.BeginInvoke(() =>
+                {
+                    Log.Info("Ставится новая версия — закрываюсь");
+                    Shutdown();
+                })))
         {
             Log.Info("Snapkit уже запущен — попросил его показать ленту");
             Shutdown();
@@ -132,7 +140,35 @@ public partial class App : Application
         _strip.Show();
 
         if (settingsWereReset) Toasts.Show("Файл настроек не читался, настройки созданы заново");
-        if (restored > 0) Toasts.Show("Снимки восстановлены после сбоя");
+        // После установки новой версии лента тоже читается с диска, но это не сбой
+        if (SelfInstall.IsJustInstalled(e.Args)) Toasts.Show("Snapkit установлен: ярлык в «Пуске», запуск вместе с Windows");
+        else if (restored > 0) Toasts.Show("Снимки восстановлены после сбоя");
+    }
+
+    /// <summary>
+    /// Exe из релиза, запущенный не из своей папки, ставит себя и запускает установленную копию.
+    /// true — установка прошла, этой копии надо закрыться.
+    /// </summary>
+    private bool TryInstallItself()
+    {
+        var exe = Environment.ProcessPath;
+        if (exe is null || SelfInstall.Decide(exe, AutoStart.InstallDirectory, SelfInstall.IsSingleFile) != SelfInstallAction.Install)
+            return false;
+        try
+        {
+            Log.Info($"Установка Snapkit из {exe} в {AutoStart.InstallDirectory}");
+            SelfInstall.InstallAndLaunch(exe, AutoStart.InstallDirectory);
+            Shutdown();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("установка", ex);
+            MessageBox.Show($"Не удалось установить Snapkit в папку {AutoStart.InstallDirectory}. " +
+                            "Программа запустится без установки. Подробности — в журнале.",
+                "Snapkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
     }
 
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
