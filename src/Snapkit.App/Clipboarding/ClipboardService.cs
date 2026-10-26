@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Interop;
@@ -36,6 +37,7 @@ public sealed partial class ClipboardService : IDisposable
     private volatile int _kind;
     private (int Pid, TaskCompletionSource<bool> Done)? _expected;
     private volatile bool _pasteKeysSent;
+    private long _publishedAt;
 
     public ClipboardService()
     {
@@ -72,6 +74,7 @@ public sealed partial class ClipboardService : IDisposable
         try
         {
             EmptyClipboard();
+            _publishedAt = Stopwatch.GetTimestamp();
             _payload = payload;
             _kind = (int)kind;
             if (payload.Png is not null) SetClipboardData(_pngFormat, 0);
@@ -106,10 +109,16 @@ public sealed partial class ClipboardService : IDisposable
         _pasteKeysSent = false;
         _ = Task.Delay(timeout).ContinueWith(_ =>
         {
+            var expired = false;
             lock (_expectGate)
             {
-                if (_expected?.Done == done) _expected = null;
+                if (_expected?.Done == done)
+                {
+                    _expected = null;
+                    expired = true;
+                }
             }
+            if (expired) Log.Info($"Получатель не забрал данные за {timeout.TotalMilliseconds:0} мс");
             done.TrySetResult(false);
         }, TaskScheduler.Default);
         return done.Task;
@@ -133,6 +142,7 @@ public sealed partial class ClipboardService : IDisposable
         switch ((uint)msg)
         {
             case WM_RENDERFORMAT:
+                if ((ClipboardKind)_kind == ClipboardKind.PasteStep) LogRender((uint)wParam);
                 ConfirmIfExpected();
                 Render((uint)wParam);
                 handled = true;
@@ -178,13 +188,7 @@ public sealed partial class ClipboardService : IDisposable
         // Буфер открыт без окна (так читает Chrome): читателя не узнать, но если Ctrl+V уже отправлен —
         // это получатель; менеджеры буфера читают сразу после изменения, ещё до нажатия
         var anonymousAfterKeys = opener == 0 && _pasteKeysSent;
-        if (!anonymousAfterKeys && !ProcessTree.IsSameOrDescendant((int)pid, expectedPid))
-        {
-            // Для разбора на месте: кто на самом деле прочитал буфер во время вставки
-            Log.Info($"Буфер во время вставки прочитал не получатель: {ProcessTree.NameOf((int)pid)} ({pid}), " +
-                     $"ждали {ProcessTree.NameOf(expectedPid)} ({expectedPid})");
-            return;
-        }
+        if (!anonymousAfterKeys && !ProcessTree.IsSameOrDescendant((int)pid, expectedPid)) return;
 
         TaskCompletionSource<bool>? done = null;
         lock (_expectGate)
@@ -196,6 +200,23 @@ public sealed partial class ClipboardService : IDisposable
             }
         }
         done?.TrySetResult(true);
+    }
+
+    // Для разбора неподтверждённых вставок: кто, что и когда читает из буфера во время вставки
+    private void LogRender(uint format)
+    {
+        var opener = GetOpenClipboardWindow();
+        var pid = 0u;
+        if (opener != 0) GetWindowThreadProcessId(opener, out pid);
+        int? expectedPid;
+        lock (_expectGate) expectedPid = _expected?.Pid;
+
+        var name = format == _pngFormat ? "PNG" : format == CF_DIB ? "DIB" : format == CF_UNICODETEXT ? "текст" : format.ToString();
+        var reader = opener == 0 ? "без окна" : $"{ProcessTree.NameOf((int)pid)} ({pid})";
+        var ms = (int)Stopwatch.GetElapsedTime(_publishedAt).TotalMilliseconds;
+        var keys = _pasteKeysSent ? "Ctrl+V отправлен" : "Ctrl+V ещё не отправлен";
+        var waiting = expectedPid is { } p ? $"ждём {ProcessTree.NameOf(p)} ({p})" : "ожидание уже закончилось";
+        Log.Info($"Чтение буфера при вставке: {name}, читает {reader}, через {ms} мс, {keys}, {waiting}");
     }
 
     private void Render(uint format)
