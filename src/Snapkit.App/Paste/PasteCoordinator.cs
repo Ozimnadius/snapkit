@@ -59,6 +59,8 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
             Log.Info($"Вставка пачки в {ProcessTree.NameOf(targetPid)} ({targetPid})");
             var plan = createPlan();
             if (plan.IsEmpty) return new PasteOutcome(PasteStatus.NothingToPaste, 0, 0);
+            // «Повторить последнюю вставку» вернёт эту пачку, даже если вставку остановят
+            if (plan.FromStrip) session.RememberPaste(plan.CaptureIds);
 
             // Всё готовим заранее, чтобы между вставками не было долгих пауз
             var steps = plan.Images

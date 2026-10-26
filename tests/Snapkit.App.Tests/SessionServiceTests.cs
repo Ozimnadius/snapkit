@@ -28,6 +28,107 @@ public sealed class SessionServiceTests : IDisposable
         Guid.NewGuid(), AnnotationKind.Rectangle, [new PointD(1, 1), new PointD(5, 5)], "#E53935", 4, null, note);
 
     [Fact]
+    public void Restore_PutsBackAtIndexWithSentFlag() => StaRunner.Run(() =>
+    {
+        var service = new SessionService(new SessionStore(_dir));
+        var a = service.AddCapture(Image(10, 10), new RectI(0, 0, 10, 10), [], "");
+        var source = Image(20, 10);
+        var b = service.AddCapture(source, new RectI(0, 0, 20, 10), [], "");
+        var c = service.AddCapture(Image(10, 10), new RectI(0, 0, 10, 10), [], "");
+        service.SetSent(b, true);
+
+        var removed = service.Remove(b);
+        Assert.NotNull(removed);
+        Assert.True(service.Restore(removed));
+        service.FlushAsync().Wait();
+
+        Assert.Equal([a, b, c], service.Model.Captures.Select(x => x.Id));
+        Assert.True(service.Model.Captures[1].IsSent);
+        Assert.Same(source, service.GetSource(b));
+    });
+
+    [Fact]
+    public void Restore_WhenNoRoom_ReturnsFalse() => StaRunner.Run(() =>
+    {
+        var service = new SessionService(new SessionStore(_dir));
+        var ids = Enumerable.Range(0, SessionModel.MaxCaptures)
+            .Select(_ => service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "")).ToList();
+        var removed = service.Remove(ids[3])!;
+        service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
+
+        Assert.False(service.Restore(removed));
+        Assert.Equal(SessionModel.MaxCaptures, service.Model.Captures.Count);
+        Assert.DoesNotContain(service.Model.Captures, x => x.Id == ids[3]);
+        service.FlushAsync().Wait();
+    });
+
+    [Fact]
+    public void AddCapture_WhenFull_EvictsOldestSent() => StaRunner.Run(() =>
+    {
+        var service = new SessionService(new SessionStore(_dir));
+        var ids = Enumerable.Range(0, SessionModel.MaxCaptures)
+            .Select(_ => service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "")).ToList();
+        service.SetSent(ids[10], true);
+        service.SetSent(ids[3], true);
+        var changes = new List<SessionChange>();
+        service.Changed += (_, change) => changes.Add(change);
+
+        var added = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
+        service.FlushAsync().Wait();
+
+        Assert.Equal(SessionModel.MaxCaptures, service.Model.Captures.Count);
+        Assert.DoesNotContain(service.Model.Captures, x => x.Id == ids[3]);
+        Assert.Contains(service.Model.Captures, x => x.Id == ids[10]);
+        Assert.Equal([new SessionChange(SessionChangeKind.Removed, ids[3]), new SessionChange(SessionChangeKind.Added, added)], changes);
+    });
+
+    [Fact]
+    public void ResendLastPaste_SkipsDeleted() => StaRunner.Run(() =>
+    {
+        var service = new SessionService(new SessionStore(_dir));
+        var a = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
+        var b = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
+        var c = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
+        service.RememberPaste([a, b]);
+        service.Remove(b);
+        service.MarkSent([a, c]);
+
+        service.ResendLastPaste();
+        service.FlushAsync().Wait();
+
+        Assert.Equal([(a, false), (c, true)], service.Model.Captures.Select(x => (x.Id, x.IsSent)));
+    });
+
+    [Fact]
+    public void HasLastPaste_FalseUntilRemembered() => StaRunner.Run(() =>
+    {
+        var service = new SessionService(new SessionStore(_dir));
+        Assert.False(service.HasLastPaste);
+        service.RememberPaste([Guid.NewGuid()]);
+        Assert.True(service.HasLastPaste);
+    });
+
+    [Fact]
+    public void MoveBefore_RaisesReordered() => StaRunner.Run(() =>
+    {
+        var service = new SessionService(new SessionStore(_dir));
+        var a = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
+        var b = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
+        var changes = new List<SessionChange>();
+        service.Changed += (_, change) => changes.Add(change);
+
+        service.MoveBefore(b, 0);
+        service.FlushAsync().Wait();
+
+        Assert.Equal([b, a], service.Model.Captures.Select(x => x.Id));
+        Assert.Equal(new SessionChange(SessionChangeKind.Reordered, b), Assert.Single(changes));
+        var restored = new SessionService(new SessionStore(_dir));
+        restored.RestoreFromDisk();
+        Assert.Equal([b, a], restored.Model.Captures.Select(x => x.Id));
+        restored.FlushAsync().Wait();
+    });
+
+    [Fact]
     public void AddCapture_WritesImageAndSession() => StaRunner.Run(() =>
     {
         var service = new SessionService(new SessionStore(_dir));

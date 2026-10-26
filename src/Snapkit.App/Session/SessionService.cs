@@ -11,9 +11,12 @@ using Snapkit.Core.Session;
 
 namespace Snapkit.App.Session;
 
-public enum SessionChangeKind { Added, Updated, Removed, Cleared, SentMarked }
+public enum SessionChangeKind { Added, Updated, Removed, Cleared, SentMarked, Reordered }
 
 public sealed record SessionChange(SessionChangeKind Kind, Guid? CaptureId);
+
+/// <summary>Удалённый снимок для «Вернуть»: разметка, картинка и место в ленте.</summary>
+public sealed record RemovedCapture(Capture Capture, BitmapSource Source, int Index);
 
 /// <summary>
 /// Лента снимков для всей программы: модель, исходные картинки в памяти и запись на диск.
@@ -26,6 +29,8 @@ public sealed class SessionService(SessionStore store)
     private Task _tail = Task.CompletedTask;
     private bool _saveQueued;
     private volatile IReadOnlyList<Capture> _latest = [];
+    // Пачка последней вставки по Ctrl+V — для «Повторить последнюю вставку»; на диск не пишется
+    private IReadOnlyList<Guid> _lastPaste = [];
 
     public SessionModel Model { get; } = new();
 
@@ -42,8 +47,13 @@ public sealed class SessionService(SessionStore store)
         return source;
     }
 
+    /// <summary>
+    /// Новый снимок в конец ленты. Полная лента сначала освобождает место от самого старого
+    /// отправленного снимка; если все неотправленные — бросает (вызывающий проверяет Model.CanMakeRoom).
+    /// </summary>
     public Guid AddCapture(BitmapSource source, RectI screenBounds, ImmutableList<Annotation> annotations, string snapshotNote)
     {
+        MakeRoom();
         var frozen = source.IsFrozen ? source : ImageCodecs.Normalize(source);
         var capture = new Capture(Guid.NewGuid(), frozen.PixelWidth, frozen.PixelHeight, screenBounds,
             annotations, snapshotNote, IsSent: false, DateTimeOffset.Now);
@@ -74,12 +84,86 @@ public sealed class SessionService(SessionStore store)
         Raise(SessionChangeKind.Updated, updated.Id);
     }
 
-    public void Remove(Guid id)
+    /// <summary>Удалить снимок; возвращает всё, что нужно для «Вернуть», или null, если его нет.</summary>
+    public RemovedCapture? Remove(Guid id)
     {
-        if (Model.Remove(id) is null) return;
+        var index = Model.Captures.ToList().FindIndex(c => c.Id == id);
+        if (index < 0) return null;
+        BitmapSource source;
+        try { source = GetSource(id); }
+        catch (Exception) { source = EmptySource; }
+        var capture = Model.Remove(id)!;
         _sources.Remove(id);
         Persist();
         Raise(SessionChangeKind.Removed, id);
+        return new RemovedCapture(capture, source, index);
+    }
+
+    /// <summary>«Вернуть»: снимок на прежнее место с прежней отметкой. false — места нет.</summary>
+    public bool Restore(RemovedCapture removed)
+    {
+        if (Model.Captures.Any(c => c.Id == removed.Capture.Id) || !Model.CanMakeRoom) return false;
+        MakeRoom();
+        _sources[removed.Capture.Id] = removed.Source;
+        Model.Insert(removed.Index, removed.Capture);
+        // Картинка на диске могла быть уже убрана — пишем её заново
+        Enqueue(() => store.WriteSourceImage(removed.Capture.Id, ImageCodecs.EncodePng(removed.Source)));
+        Persist();
+        Raise(SessionChangeKind.Added, removed.Capture.Id);
+        return true;
+    }
+
+    /// <summary>Щелчок по значку карточки: снимок в пачке или нет.</summary>
+    public void SetSent(Guid id, bool isSent)
+    {
+        Model.SetSent(id, isSent);
+        Persist();
+        Raise(SessionChangeKind.SentMarked, id);
+    }
+
+    /// <summary>Запомнить пачку, которую вставляют по Ctrl+V (даже если вставку потом остановят).</summary>
+    public void RememberPaste(IReadOnlyList<Guid> ids) => _lastPaste = ids.ToList();
+
+    public bool HasLastPaste => _lastPaste.Count > 0;
+
+    /// <summary>«Повторить последнюю вставку»: та пачка снова неотправленная, остальные — отправленные.</summary>
+    public void ResendLastPaste()
+    {
+        if (!HasLastPaste) return;
+        Model.ResendOnly(_lastPaste.ToList());
+        Persist();
+        Raise(SessionChangeKind.SentMarked, null);
+    }
+
+    /// <summary>Перетащили карточку: поставить снимок перед карточкой с номером slot.</summary>
+    public void MoveBefore(Guid id, int slot)
+    {
+        var before = Model.Captures.ToList();
+        Model.MoveBefore(id, slot);
+        if (before.SequenceEqual(Model.Captures)) return;
+        Persist();
+        Raise(SessionChangeKind.Reordered, id);
+    }
+
+    // Полная лента: вытеснить самый старый отправленный снимок (бросает, если вытеснять нечего)
+    private void MakeRoom()
+    {
+        if (!Model.IsFull) return;
+        var evicted = Model.EvictOldestSent()
+                      ?? throw new InvalidOperationException($"В ленте {SessionModel.MaxCaptures} неотправленных снимков.");
+        _sources.Remove(evicted.Id);
+        Log.Info("Лента полна — вытеснен самый старый отправленный снимок");
+        Persist();
+        Raise(SessionChangeKind.Removed, evicted.Id);
+    }
+
+    private static readonly BitmapSource EmptySource = CreateEmptySource();
+
+    private static BitmapSource CreateEmptySource()
+    {
+        var image = BitmapSource.Create(1, 1, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, new byte[4], 4);
+        image.Freeze();
+        return image;
     }
 
     public void MarkSent(IEnumerable<Guid> ids)

@@ -5,6 +5,7 @@ using System.Windows.Media.Imaging;
 using Snapkit.App.Clipboarding;
 using Snapkit.App.Paste;
 using Snapkit.App.Session;
+using Snapkit.Core;
 using Snapkit.Core.Input;
 using Snapkit.Core.Session;
 
@@ -81,5 +82,45 @@ public class PasteCoordinatorClipboardTests
         });
 
         Assert.Equal(new PasteOutcome(PasteStatus.CompletedVerified, 1, 1), outcome);
+    }
+
+    [Fact]
+    public void StoppedPaste_IsRememberedAsLastPaste()
+    {
+        // Пачку a, b остановили Esc после первой картинки: «Повторить последнюю вставку» вернёт обе
+        var dir = Path.Combine(Path.GetTempPath(), "snapkit-tests-" + Guid.NewGuid());
+        using var host = new ClipboardTestHost();
+        using var reader = new ForeignClipboard();
+        var image = BitmapSource.Create(4, 4, 96, 96, PixelFormats.Bgra32, null, new byte[4 * 4 * 4], 4 * 4);
+        image.Freeze();
+        PasteOutcome? outcome = null;
+        SessionService? session = null;
+        Guid a = default, b = default, c = default;
+        host.Run(async () =>
+        {
+            session = new SessionService(new SessionStore(dir));
+            a = session.AddCapture(image, new RectI(0, 0, 4, 4), [], "");
+            b = session.AddCapture(image, new RectI(0, 0, 4, 4), [], "");
+            c = session.AddCapture(image, new RectI(0, 0, 4, 4), [], "");
+            var plan = new PastePlan([image, image], "", [a, b], NotesCount: 0, FromStrip: true);
+            var router = new KeyRouter(() => default);
+            var paste = new PasteCoordinator(session, host.Service, router, () => plan, () => false,
+                send: _ =>
+                {
+                    reader.ReadAnonymously(ForeignClipboard.Format("PNG"));
+                    router.EscapePressedDuringPaste = true;
+                });
+            outcome = await paste.PasteBatchAsync();
+            await session.FlushAsync();
+        });
+
+        Assert.Equal(PasteStatus.StoppedByUser, outcome?.Status);
+        Assert.True(session!.HasLastPaste);
+        host.Run(() =>
+        {
+            session.ResendLastPaste();
+            return session.FlushAsync();
+        });
+        Assert.Equal([(a, false), (b, false), (c, true)], session.Model.Captures.Select(x => (x.Id, x.IsSent)));
     }
 }
