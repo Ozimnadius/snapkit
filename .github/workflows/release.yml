@@ -1,0 +1,50 @@
+# Релиз по метке версии: git tag v0.1.0 && git push origin v0.1.0
+# Тесты → один Snapkit.exe (версия из метки) → релиз на GitHub с этим файлом.
+name: Релиз
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Сборка и публикация
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Тесты
+        run: dotnet test Snapkit.slnx --filter "Category!=Clipboard&Category!=Desktop" --nologo
+
+      - name: Сборка Snapkit.exe
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          dotnet publish src/Snapkit.App -c Release -p:SnapkitRelease=true -p:Version=$version -o artifacts/release --nologo
+
+      - name: Публикация релиза
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $exe = 'artifacts/release/Snapkit.exe'
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
+          $notes = @"
+          Скачайте **Snapkit.exe** и запустите — программа сама поставит себя в ``%LOCALAPPDATA%\Programs\Snapkit``,
+          создаст ярлык в меню «Пуск» и будет запускаться вместе с Windows. Обновление — так же: запустите новый файл.
+
+          Windows может предупредить «Windows защитил ваш компьютер»: у программы нет платной подписи —
+          нажмите «Подробнее» → «Выполнить в любом случае».
+
+          SHA-256 файла Snapkit.exe: ``$hash``
+          "@
+          $notes = ($notes -split "`n" | ForEach-Object { $_.Trim() }) -join "`n"
+          Set-Content -Path release-notes.md -Value $notes -Encoding utf8
+          gh release create '${{ github.ref_name }}' $exe --title 'Snapkit ${{ github.ref_name }}' --notes-file release-notes.md

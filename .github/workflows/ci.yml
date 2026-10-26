@@ -1,0 +1,22 @@
+# Тесты при каждой отправке в main и в pull request.
+# Тесты с настоящим буфером обмена и окнами на экране здесь не запускаются — как и в build.ps1.
+name: Проверка
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Тесты
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Тесты
+        run: dotnet test Snapkit.slnx --filter "Category!=Clipboard&Category!=Desktop" --nologo
