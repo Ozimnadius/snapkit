@@ -38,6 +38,109 @@ public class AnnotationGeometryTests
     public void IsWellFormed_PencilStroke_IsTrue()
         => Assert.True(AnnotationGeometry.IsWellFormed(Shape(AnnotationKind.Pencil, points: [new(0, 0), new(3, 4), new(8, 9)])));
 
+    // --- Этап 2: новые фигуры ---
+
+    private static readonly Annotation Oval = Shape(AnnotationKind.Ellipse, points: [new(0, 0), new(100, 60)]);
+    private static readonly Annotation Curved = Shape(AnnotationKind.CurvedArrow, points: [new(0, 0), new(50, 40), new(100, 0)]);
+
+    [Fact]
+    public void Ellipse_HitOnOutline_NotInside_WhenNotFilled()
+    {
+        Assert.True(AnnotationGeometry.HitTest(Oval, new PointD(50, 0), 4));
+        Assert.False(AnnotationGeometry.HitTest(Oval, new PointD(50, 30), 4));
+    }
+
+    [Fact]
+    public void Ellipse_HitInside_WhenFilled()
+        => Assert.True(AnnotationGeometry.HitTest(Oval with { Fill = FillMode.Solid }, new PointD(50, 30), 4));
+
+    [Fact]
+    public void Rectangle_SemiTransparentFill_HitInside()
+        => Assert.True(AnnotationGeometry.HitTest(Box with { Fill = FillMode.SemiTransparent }, new PointD(60, 35), 4));
+
+    [Fact]
+    public void Blur_HitInside()
+        => Assert.True(AnnotationGeometry.HitTest(Shape(AnnotationKind.Blur, points: [new(10, 10), new(110, 60)]), new PointD(60, 35), 4));
+
+    [Fact]
+    public void CurvedArrow_PassesThroughBendPoint()
+    {
+        var middle = AnnotationGeometry.CurvePoints(Curved, 24)[12];
+        Assert.Equal(50, middle.X, 0.01);
+        Assert.Equal(40, middle.Y, 0.01);
+        Assert.Equal(25, AnnotationGeometry.CurvePoints(Curved, 24).Count);
+    }
+
+    [Fact]
+    public void CurvedArrow_HitNearCurve_NotOnChord()
+    {
+        Assert.True(AnnotationGeometry.HitTest(Curved, new PointD(50, 40), 4));
+        Assert.False(AnnotationGeometry.HitTest(Curved, new PointD(50, 0), 4));
+    }
+
+    [Fact]
+    public void Bounds_CurvedArrow_CoversWholeCurve()
+    {
+        // Изгиб у начала: кривая заходит левее начальной точки (до x ≈ −5,6), хотя все три точки правее нуля
+        var skewed = Shape(AnnotationKind.CurvedArrow, points: [new(0, 0), new(10, 40), new(100, 0)]);
+        var (x, _, _, _) = AnnotationGeometry.Bounds(skewed);
+        Assert.True(x <= -5, $"левая граница {x}");
+    }
+
+    [Fact]
+    public void Pencil_HitNearPolyline_NotFarAway()
+    {
+        var stroke = Shape(AnnotationKind.Pencil, points: [new(0, 0), new(50, 0), new(50, 50)]);
+        Assert.True(AnnotationGeometry.HitTest(stroke, new PointD(52, 25), 4));
+        Assert.False(AnnotationGeometry.HitTest(stroke, new PointD(25, 25), 4));
+    }
+
+    [Fact]
+    public void Marker_HitWithinMarkerWidth()
+    {
+        // Толщина 4 → маркер шириной 16: вместе с допуском попадание ближе 12 px к линии
+        var marker = Shape(AnnotationKind.Marker, points: [new(0, 0), new(100, 0)]);
+        Assert.True(AnnotationGeometry.HitTest(marker, new PointD(50, 7), 4));
+        Assert.False(AnnotationGeometry.HitTest(marker, new PointD(50, 15), 4));
+    }
+
+    [Fact]
+    public void PinCenter_Ellipse_IsTopLeftOfBounds()
+        => Assert.Equal(new PointD(0, 0), AnnotationGeometry.PinCenter(Shape(AnnotationKind.Ellipse, points: [new(100, 60), new(0, 0)])));
+
+    [Fact]
+    public void PinCenter_AppliesPinOffset()
+        => Assert.Equal(new PointD(15, 7), AnnotationGeometry.PinCenter(Box with { PinOffset = new PointD(5, -3) }));
+
+    [Fact]
+    public void DefaultBend_IsOffMidpointBy20PercentOfLength()
+    {
+        var bend = AnnotationGeometry.DefaultBend(new PointD(0, 0), new PointD(100, 0));
+        Assert.Equal(50, bend.X, 0.001);
+        Assert.Equal(20, Math.Abs(bend.Y), 0.001);
+    }
+
+    [Fact]
+    public void IsBigEnough_PencilWithOnePoint_IsFalse()
+        => Assert.False(AnnotationGeometry.IsBigEnough(Shape(AnnotationKind.Pencil, points: [new(5, 5)]), 4));
+
+    [Fact]
+    public void IsBigEnough_FlatEllipse_IsFalse()
+        => Assert.False(AnnotationGeometry.IsBigEnough(Shape(AnnotationKind.Ellipse, points: [new(0, 0), new(50, 2)]), 4));
+
+    [Fact]
+    public void IsBigEnough_LongLine_IsTrue()
+        => Assert.True(AnnotationGeometry.IsBigEnough(Shape(AnnotationKind.Line, points: [new(0, 0), new(3, 4)]), 4));
+
+    [Fact]
+    public void HitTest_PinWithOffset_UsesShiftedCircle()
+    {
+        // Кружок, сдвинутый внутрь снимка, выбирается там, где нарисован
+        var pin = Shape(AnnotationKind.Pin, note: "точка", points: [new(0, 0)]) with { PinOffset = new PointD(40, 0) };
+        Assert.True(AnnotationGeometry.HitTest(pin, new PointD(40, 0), 4));
+        Assert.False(AnnotationGeometry.HitTest(pin, new PointD(0, 0), 4));
+    }
+
     [Theory]
     [InlineData(10, 30, true)]   // на левой стороне
     [InlineData(60, 35, false)]  // внутри — не попадание, чтобы можно было рисовать поверх
