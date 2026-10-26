@@ -108,6 +108,7 @@ public sealed class EditorSurface : UserControl
 
     public RectI Region => _region;
     public char Letter => _context.Letter;
+    public string SnapshotNote => _snapshotNote;
     public bool IsChanged => _history.IsChanged || _snapshotNote != _context.SnapshotNote;
 
     private RectI Origin => new(0, 0, _region.Width, _region.Height);

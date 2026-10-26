@@ -4,7 +4,7 @@ namespace Snapkit.Core.Tests;
 
 public class KeyRouterTests
 {
-    private static readonly PasteContext Ready = new(HasUnsent: true, PackageIsCurrent: true, ForegroundIsOwn: false);
+    private static readonly PasteContext Ready = new(HasPasteContent: true, PackageIsCurrent: true, ForegroundIsOwn: false);
     private static readonly KeyDecision Pass = new(false, KeyAction.None);
     private static readonly KeyDecision Swallow = new(true, KeyAction.None);
 
@@ -242,7 +242,7 @@ public class KeyRouterTests
     public void AfterPaste_ExtraCtrlVIsBrieflySwallowed()
     {
         var now = DateTime.UnixEpoch;
-        var nothingToPaste = new PasteContext(HasUnsent: false, PackageIsCurrent: false, ForegroundIsOwn: false);
+        var nothingToPaste = new PasteContext(HasPasteContent: false, PackageIsCurrent: false, ForegroundIsOwn: false);
         var r = new KeyRouter(() => nothingToPaste, clock: () => now) { PasteInProgress = true };
         r.PasteInProgress = false; // пачка вставлена
         r.Process(Down(Vk.LCtrl));

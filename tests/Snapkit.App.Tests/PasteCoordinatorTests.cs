@@ -18,8 +18,8 @@ public class PasteCoordinatorTests
         var dir = Path.Combine(Path.GetTempPath(), "snapkit-tests-" + Guid.NewGuid());
         using var clipboard = new ClipboardService();
         var router = new KeyRouter(() => default);
-        var paste = new PasteCoordinator(new SessionService(new SessionStore(dir)), clipboard, router, () => false,
-            send: _ => throw new Win32Exception(5));
+        var paste = new PasteCoordinator(new SessionService(new SessionStore(dir)), clipboard, router, () => PastePlan.Empty,
+            () => false, send: _ => throw new Win32Exception(5));
 
         var task = paste.PasteBatchAsync(); // пустая лента — завершается сразу, без ожиданий
         Assert.True(task.IsCompletedSuccessfully);

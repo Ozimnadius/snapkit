@@ -2,7 +2,6 @@ using Snapkit.App.Clipboarding;
 using Snapkit.App.Imaging;
 using Snapkit.App.Input;
 using Snapkit.App.Interop;
-using Snapkit.App.Rendering;
 using Snapkit.App.Session;
 using Snapkit.App.Shell;
 using Snapkit.Core;
@@ -18,10 +17,11 @@ public sealed record PasteOutcome(PasteStatus Status, int ImagesPasted, int Note
 /// Вставка пачки по перехваченному Ctrl+V: каждая картинка, затем текст — через буфер обмена
 /// и программный Ctrl+V. Enter не нажимается никогда: сообщение отправляет пользователь.
 /// </summary>
+/// <param name="createPlan">Что вставить: план для последнего скопированного пакета.</param>
 /// <param name="clearAfterPaste">Настройка «Очищать ленту после вставки».</param>
 /// <param name="send">Отправка программных нажатий; по умолчанию SendInput (подменяется в тестах).</param>
-public sealed class PasteCoordinator(SessionService session, ClipboardService clipboard, KeyRouter router, Func<bool> clearAfterPaste,
-    Action<IReadOnlyList<KeyStroke>>? send = null)
+public sealed class PasteCoordinator(SessionService session, ClipboardService clipboard, KeyRouter router, Func<PastePlan> createPlan,
+    Func<bool> clearAfterPaste, Action<IReadOnlyList<KeyStroke>>? send = null)
 {
     private readonly Action<IReadOnlyList<KeyStroke>> _send = send ?? InputSender.Send;
 
@@ -57,19 +57,15 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
             var target = Foreground.Current;
             var targetPid = Foreground.ProcessOf(target);
             Log.Info($"Вставка пачки в {ProcessTree.NameOf(targetPid)} ({targetPid})");
-            var package = PackageSelector.Select(session.Model.Captures);
-            if (package.Count == 0) return new PasteOutcome(PasteStatus.NothingToPaste, 0, 0);
+            var plan = createPlan();
+            if (plan.IsEmpty) return new PasteOutcome(PasteStatus.NothingToPaste, 0, 0);
 
             // Всё готовим заранее, чтобы между вставками не было долгих пауз
-            var steps = new List<ClipboardPayload>();
-            foreach (var (letter, capture) in package)
-            {
-                var image = CaptureRenderer.Render(session.GetSource(capture.Id), capture, letter);
-                steps.Add(new ClipboardPayload(ImageCodecs.EncodePng(image), ImageCodecs.EncodeDib(image), null));
-            }
-            var text = PromptBuilder.Build(package);
-            if (text.Length > 0) steps.Add(new ClipboardPayload(null, null, text));
-            var notes = package.Sum(p => p.Capture.NoteCount);
+            var steps = plan.Images
+                .Select(image => new ClipboardPayload(ImageCodecs.EncodePng(image), ImageCodecs.EncodeDib(image), null))
+                .ToList();
+            if (plan.Text.Length > 0) steps.Add(new ClipboardPayload(null, null, plan.Text));
+            var notes = plan.NotesCount;
 
             await WaitForCtrlRelease();
 
@@ -90,8 +86,8 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
                 await Task.Delay(confirmed ? VerifiedPause : UnverifiedPause);
             }
 
-            session.MarkSent(package.Select(p => p.Capture.Id));
-            if (clearAfterPaste()) session.ClearAll();
+            if (plan.CaptureIds.Count > 0) session.MarkSent(plan.CaptureIds);
+            if (plan.FromStrip && clearAfterPaste()) session.ClearAll();
             return new PasteOutcome(verified ? PasteStatus.CompletedVerified : PasteStatus.CompletedUnverified, images, notes);
         }
         catch (ClipboardBusyException)

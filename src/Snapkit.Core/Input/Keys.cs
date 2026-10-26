@@ -29,10 +29,13 @@ public enum KeyAction { None, CaptureRegion, CaptureFullScreen, PasteBatch }
 /// <summary>Suppress — не пропускать нажатие дальше в систему.</summary>
 public readonly record struct KeyDecision(bool Suppress, KeyAction Action);
 
-/// <summary>Условия перехвата Ctrl+V (раздел 7.2 описания проекта).</summary>
-public readonly record struct PasteContext(bool HasUnsent, bool PackageIsCurrent, bool ForegroundIsOwn)
+/// <summary>
+/// Условия перехвата Ctrl+V (раздел 7.2 описания проекта). HasPasteContent — в скопированном пакете
+/// есть что вставить (неотправленные снимки ленты или один скопированный снимок).
+/// </summary>
+public readonly record struct PasteContext(bool HasPasteContent, bool PackageIsCurrent, bool ForegroundIsOwn)
 {
-    public bool AllowsIntercept => HasUnsent && PackageIsCurrent && !ForegroundIsOwn;
+    public bool AllowsIntercept => HasPasteContent && PackageIsCurrent && !ForegroundIsOwn;
 }
 
 /// <summary>Одно программное нажатие или отпускание клавиши.</summary>

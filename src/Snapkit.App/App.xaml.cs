@@ -47,8 +47,8 @@ public partial class App : Application
     private KeyRouter _router = null!;
     private PasteCoordinator? _paste;
     private KeyboardHookThread? _hook;
-    // Читается с потока хука клавиатуры
-    private volatile bool _hasUnsent;
+    // Есть что вставить по Ctrl+V; читается с потока хука клавиатуры
+    private volatile bool _hasPasteContent;
     private bool _clearOnExit;
     private bool _stripWasVisible;
 
@@ -90,17 +90,20 @@ public partial class App : Application
         _clipboard.ClipboardChanged += (_, _) => UpdatePackageDisplaced();
         _session.Changed += (_, change) =>
         {
-            _hasUnsent = _session.Model.UnsentCount > 0;
             RefreshStrip();
             OnSessionChangedForClipboard(change);
-            UpdatePackageDisplaced();
+            UpdatePasteState();
         };
 
         _stripModel = new StripViewModel { IsTopmost = _settings.StripTopmost };
         _strip = new StripWindow(_stripModel);
         _capture = new CaptureController(_session, HideChrome, RestoreChrome)
         {
-            CopyImage = image => _publisher.CopyImageAsync(image),
+            CopyDraft = async (source, annotations, note) =>
+            {
+                await _publisher.CopyDraftAsync(source, annotations, note);
+                UpdatePasteState();
+            },
         };
         WireStrip();
         WireTray();
@@ -115,7 +118,7 @@ public partial class App : Application
             Toasts.Error("Не удалось восстановить ленту после сбоя");
         }
 
-        _hasUnsent = _session.Model.UnsentCount > 0;
+        UpdatePasteState();
         RefreshStrip();
         PlaceStrip();
         _strip.Show();
@@ -186,8 +189,8 @@ public partial class App : Application
     /// <summary>Глобальные клавиши: Print Screen — снимок, Ctrl+V — вставка пачки.</summary>
     private void StartKeyboardHook()
     {
-        _router = new KeyRouter(() => new PasteContext(_hasUnsent, IsPackageCurrent(), Foreground.IsOwn()), ModifierState.Read);
-        _paste = new PasteCoordinator(_session, _clipboard!, _router, () => _settings.ClearStripAfterPaste);
+        _router = new KeyRouter(() => new PasteContext(_hasPasteContent, IsPackageCurrent(), Foreground.IsOwn()), ModifierState.Read);
+        _paste = new PasteCoordinator(_session, _clipboard!, _router, _publisher.CreatePastePlan, () => _settings.ClearStripAfterPaste);
         _hook = new KeyboardHookThread(_router, action => Dispatcher.BeginInvoke(() => OnKeyAction(action)));
         try { _hook.Start(); }
         catch (Exception ex)
@@ -218,6 +221,13 @@ public partial class App : Application
     private void UpdatePackageDisplaced()
         => _stripModel.PackageDisplaced = _session.Model.UnsentCount > 0 && !IsPackageCurrent();
 
+    // Что можно вставить по Ctrl+V — для перехвата на потоке хука
+    private void UpdatePasteState()
+    {
+        _hasPasteContent = _publisher.HasPasteContent;
+        UpdatePackageDisplaced();
+    }
+
     private async void RunClipboard(Func<Task> action)
     {
         try
@@ -233,7 +243,7 @@ public partial class App : Application
             Log.Error("буфер обмена", ex);
             Toasts.Error("Не удалось положить снимки в буфер обмена");
         }
-        UpdatePackageDisplaced();
+        UpdatePasteState();
     }
 
     private void OnKeyAction(KeyAction action)
@@ -266,7 +276,7 @@ public partial class App : Application
             Log.Error("вставка пачки", ex);
             Toasts.Error("Вставка не удалась. Подробности — в журнале");
         }
-        UpdatePackageDisplaced();
+        UpdatePasteState();
     }
 
     // На время снимка лента и уведомления прячутся, чтобы не попасть в кадр
