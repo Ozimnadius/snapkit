@@ -26,6 +26,11 @@ public class UpdatePolicyTests
         => Assert.True(UpdatePolicy.ShouldOffer(Current, Latest("0.3.3"), "0.3.2", Now.AddDays(1), Now));
 
     [Fact]
+    public void ShouldOffer_NoHash_No()
+        // Версию узнали со страницы релизов, а хеша нет — кнопкой «Обновить» такую не поставить
+        => Assert.False(UpdatePolicy.ShouldOffer(Current, new ReleaseInfo(new Version(0, 3, 2), "https://example/Snapkit.exe", null), "", null, Now));
+
+    [Fact]
     public void ShouldOffer_SnoozeExpired_Yes()
         => Assert.True(UpdatePolicy.ShouldOffer(Current, Latest("0.3.2"), "0.3.2", Now.AddDays(-1), Now));
 

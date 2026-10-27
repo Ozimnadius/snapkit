@@ -5,10 +5,13 @@ namespace Snapkit.Core.Updates;
 /// <summary>Когда предлагать обновление и годится ли скачанный файл.</summary>
 public static class UpdatePolicy
 {
-    /// <summary>Версия новее и не отложена: snoozedVersion совпадает и now раньше snoozedUntil — не предлагать.</summary>
+    /// <summary>
+    /// Версия новее, её можно поставить (есть хеш) и она не отложена: snoozedVersion совпадает и now раньше
+    /// snoozedUntil — не предлагать.
+    /// </summary>
     public static bool ShouldOffer(Version current, ReleaseInfo latest, string snoozedVersion, DateTimeOffset? snoozedUntil, DateTimeOffset now)
     {
-        if (latest.Version <= current) return false;
+        if (latest.Version <= current || !latest.CanInstall) return false;
         var snoozed = Version.TryParse(snoozedVersion, out var version) && version == latest.Version
                       && snoozedUntil is { } until && now < until;
         return !snoozed;

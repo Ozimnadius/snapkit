@@ -1,6 +1,6 @@
 # Релиз по метке версии: git tag v0.1.0 && git push origin v0.1.0
 # Что нового (раздел версии из CHANGELOG.md) → тесты → один Snapkit.exe (версия из метки) →
-# релиз на GitHub с этим файлом. Без раздела в CHANGELOG.md релиз не выходит.
+# релиз на GitHub с этим файлом и его хешем Snapkit.exe.sha256. Без раздела в CHANGELOG.md релиз не выходит.
 name: Релиз
 
 on:
@@ -49,6 +49,9 @@ jobs:
         run: |
           $exe = 'artifacts/release/Snapkit.exe'
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
+          # Хеш отдельным файлом: по нему проверяют обновление без GitHub API (у API лимит запросов с одного адреса)
+          $sha = 'artifacts/release/Snapkit.exe.sha256'
+          [IO.File]::WriteAllText($sha, "$($hash.ToLowerInvariant())  Snapkit.exe`n", [Text.UTF8Encoding]::new($false))
           $notes = @"
           Скачайте **Snapkit.exe** и запустите — программа сама поставит себя в ``%LOCALAPPDATA%\Programs\Snapkit``,
           создаст ярлык в меню «Пуск» и будет запускаться вместе с Windows. Обновление — так же: запустите новый файл.
@@ -61,4 +64,4 @@ jobs:
           $notes = ($notes -split "`n" | ForEach-Object { $_.Trim() }) -join "`n"
           $changes = Get-Content changes.md -Raw -Encoding utf8
           Set-Content -Path release-notes.md -Value ($changes.Trim() + "`n`n---`n`n## Установка`n`n" + $notes) -Encoding utf8
-          gh release create '${{ github.ref_name }}' $exe --title 'Snapkit ${{ github.ref_name }}' --notes-file release-notes.md
+          gh release create '${{ github.ref_name }}' $exe $sha --title 'Snapkit ${{ github.ref_name }}' --notes-file release-notes.md

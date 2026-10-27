@@ -55,7 +55,7 @@ public sealed class UpdateCheckModel(
             }
             _available = latest;
             Status = $"Вышла версия {latest.Version}";
-            ActionText = canInstall ? "Обновить" : "Скачать с GitHub";
+            ActionText = canInstall && latest.CanInstall ? "Обновить" : "Скачать с GitHub";
         }
         finally
         {
@@ -67,7 +67,7 @@ public sealed class UpdateCheckModel(
     public async Task RunActionAsync()
     {
         if (!IsIdle || _available is not { } latest) return;
-        if (!canInstall)
+        if (!canInstall || !latest.CanInstall)
         {
             openReleasePage();
             return;

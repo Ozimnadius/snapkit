@@ -33,6 +33,24 @@ public class UpdateCheckModelTests
         Assert.Equal("Скачать с GitHub", model.ActionText);
     }
 
+    [Fact]
+    public async Task Check_Newer_NoHash_OffersReleasePage()
+    {
+        // Версия со страницы релизов, а хеш взять неоткуда — только ссылка на релиз
+        var opened = false;
+        var installCalled = false;
+        var model = Model(new ReleaseInfo(new Version(0, 5, 0), "https://example/Snapkit.exe", null),
+            install: _ => { installCalled = true; return Task.FromResult(true); },
+            openReleasePage: () => opened = true);
+        await model.CheckAsync();
+        Assert.Equal("Вышла версия 0.5.0", model.Status);
+        Assert.Equal("Скачать с GitHub", model.ActionText);
+
+        await model.RunActionAsync();
+        Assert.True(opened);
+        Assert.False(installCalled);
+    }
+
     [Theory]
     [InlineData("0.4.0")]
     [InlineData("0.3.1")]

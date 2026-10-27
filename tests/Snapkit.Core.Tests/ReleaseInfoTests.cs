@@ -39,4 +39,53 @@ public class ReleaseInfoTests
     public void Parse_ForeignDownloadUrl_IsNull()
         // Подменённый ответ задал бы и ссылку, и хеш — файл берём только из релизов Snapkit
         => Assert.Null(ReleaseInfo.Parse(Json($$"""{ "name": "Snapkit.exe", "browser_download_url": "https://example.com/Snapkit.exe", "digest": "sha256:{{Hash}}" }""")));
+
+    // Страница github.com/…/releases/latest переадресует на …/releases/tag/vX.Y.Z — без лимита GitHub API
+    [Theory]
+    [InlineData("https://github.com/Ozimnadius/snapkit/releases/tag/v0.4.1", "0.4.1")]
+    [InlineData("https://github.com/Ozimnadius/snapkit/releases/tag/V1.2.0", "1.2.0")]
+    public void VersionFromTagUrl_Tag(string url, string version)
+        => Assert.Equal(Version.Parse(version), ReleaseInfo.VersionFromTagUrl(url));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("https://github.com/Ozimnadius/snapkit/releases")]
+    [InlineData("https://github.com/Other/snapkit/releases/tag/v9.9.9")]
+    [InlineData("https://github.com/Ozimnadius/snapkit/releases/tag/v0.4.1/extra")]
+    [InlineData("https://github.com/Ozimnadius/snapkit/releases/tag/beta")]
+    public void VersionFromTagUrl_Other_IsNull(string? url) => Assert.Null(ReleaseInfo.VersionFromTagUrl(url));
+
+    [Fact]
+    public void FromPage_LinksToReleaseFiles()
+    {
+        var version = new Version(0, 4, 1);
+        Assert.Equal(new ReleaseInfo(version, "https://github.com/Ozimnadius/snapkit/releases/download/v0.4.1/Snapkit.exe", Hash),
+            ReleaseInfo.FromPage(version, Hash));
+        Assert.Equal("https://github.com/Ozimnadius/snapkit/releases/download/v0.4.1/Snapkit.exe.sha256", ReleaseInfo.HashFileUrl(version));
+    }
+
+    [Fact]
+    public void CanInstall_OnlyWithHash()
+    {
+        Assert.True(ReleaseInfo.FromPage(new Version(0, 4, 1), Hash).CanInstall);
+        Assert.False(ReleaseInfo.FromPage(new Version(0, 4, 1), null).CanInstall);
+    }
+
+    [Theory]
+    [InlineData(Hash + "  Snapkit.exe\n")]
+    [InlineData(Hash + " *Snapkit.exe")]
+    [InlineData(Hash)]
+    [InlineData("﻿" + Hash + "\r\n")]
+    public void ParseHashFile_Hash(string text) => Assert.Equal(Hash, ReleaseInfo.ParseHashFile(text));
+
+    [Fact]
+    public void ParseHashFile_UpperCase_ToLower() => Assert.Equal(Hash, ReleaseInfo.ParseHashFile(Hash.ToUpperInvariant()));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("не хеш")]
+    [InlineData("a67740352646dffbfac17436d695b04b55f198cd8060b9fdc2873e00265105c")]
+    [InlineData("a67740352646dffbfac17436d695b04b55f198cd8060b9fdc2873e00265105c00")]
+    [InlineData("zz7740352646dffbfac17436d695b04b55f198cd8060b9fdc2873e00265105c0")]
+    public void ParseHashFile_Garbage_IsNull(string text) => Assert.Null(ReleaseInfo.ParseHashFile(text));
 }

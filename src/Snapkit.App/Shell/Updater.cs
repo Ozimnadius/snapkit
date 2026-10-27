@@ -15,19 +15,24 @@ namespace Snapkit.App.Shell;
 /// <param name="saveSettings">Сохранить настройки (отложить предложенную версию).</param>
 public sealed class Updater(Func<AppSettings> settings, Action<AppSettings> saveSettings)
 {
-    private const string LatestUrl = "https://api.github.com/repos/Ozimnadius/snapkit/releases/latest";
+    // Запасной путь: GitHub API отвечает 60 раз в час на адрес, а за VPN этот лимит часто выбирают чужие запросы
+    private const string ApiLatestUrl = "https://api.github.com/repos/Ozimnadius/snapkit/releases/latest";
 
-    /// <summary>Страница последнего релиза — для копий, которые сами не обновляются.</summary>
+    /// <summary>
+    /// Страница последнего релиза: переадресует на …/releases/tag/vX.Y.Z (так узнаём версию без API)
+    /// и открывается в браузере у копий, которые сами не обновляются.
+    /// </summary>
     public const string ReleasePageUrl = "https://github.com/Ozimnadius/snapkit/releases/latest";
 
-    // Статические поля задаются сверху вниз: версия нужна HTTP-клиенту (заголовок User-Agent), поэтому она выше
+    // Статические поля задаются сверху вниз: версия нужна HTTP-клиентам (заголовок User-Agent), поэтому она выше
     /// <summary>Версия этой копии: «0.4.0».</summary>
     public static Version CurrentVersion { get; } =
         typeof(Updater).Assembly.GetName().Version is { } v ? new Version(v.Major, v.Minor, v.Build) : new Version(0, 0, 0);
 
     private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(10);
-    private static readonly HttpClient Http = CreateClient();
+    private static readonly HttpClient Http = CreateClient(followRedirects: true);
+    private static readonly HttpClient NoRedirectHttp = CreateClient(followRedirects: false);
     private bool _installing;
 
     /// <summary>Проверить GitHub и, если есть что, предложить обновление уведомлением. Ошибки сети — только в журнал.</summary>
@@ -43,14 +48,35 @@ public sealed class Updater(Func<AppSettings> settings, Action<AppSettings> save
         Toasts.Offer($"Вышла версия {latest.Version} — обновить?", "Обновить", () => _ = InstallAsync(latest));
     }
 
-    /// <summary>Последний релиз с GitHub или null: нет сети, GitHub недоступен, в релизе нет Snapkit.exe с хешем.</summary>
+    /// <summary>
+    /// Последний релиз с GitHub или null (нет сети, GitHub недоступен). Версия — со страницы релизов, хеш — из
+    /// Snapkit.exe.sha256 рядом с exe; у релизов без этого файла (0.4.0) — из GitHub API. Не новее этой копии —
+    /// хеш не нужен; новее, а хеша не достать — Sha256 = null: показать можно, поставить нельзя.
+    /// </summary>
     public static async Task<ReleaseInfo?> FetchLatestAsync()
     {
-        string json;
+        var version = await LatestVersionAsync();
+        if (version is not null)
+        {
+            if (version <= CurrentVersion) return ReleaseInfo.FromPage(version, null);
+            if (await HashFileAsync(version) is { } hash) return ReleaseInfo.FromPage(version, hash);
+        }
+        if (await FetchFromApiAsync() is { } fromApi) return fromApi;
+        return version is null ? null : ReleaseInfo.FromPage(version, null);
+    }
+
+    // github.com/…/releases/latest переадресует на …/releases/tag/vX.Y.Z — лимит API на неё не действует
+    private static async Task<Version?> LatestVersionAsync()
+    {
         try
         {
             using var timeout = new CancellationTokenSource(CheckTimeout);
-            json = await Http.GetStringAsync(LatestUrl, timeout.Token);
+            using var response = await NoRedirectHttp.GetAsync(ReleasePageUrl, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            var location = response.Headers.Location;
+            if (location is { IsAbsoluteUri: false }) location = new Uri(new Uri(ReleasePageUrl), location);
+            var version = ReleaseInfo.VersionFromTagUrl(location?.AbsoluteUri);
+            if (version is null) Log.Info($"Проверка обновления: страница релизов ответила {(int)response.StatusCode} без версии");
+            return version;
         }
         catch (Exception ex)
         {
@@ -58,9 +84,52 @@ public sealed class Updater(Func<AppSettings> settings, Action<AppSettings> save
             Log.Info($"Проверка обновления не удалась: {ex.GetType().Name}");
             return null;
         }
-        var latest = ReleaseInfo.Parse(json);
-        if (latest is null) Log.Info("Проверка обновления: в последнем релизе нет Snapkit.exe с хешем");
-        return latest;
+    }
+
+    // Snapkit.exe.sha256 кладёт в релиз его сборка; у релизов до 0.4.1 этого файла нет
+    private static async Task<string?> HashFileAsync(Version version)
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(CheckTimeout);
+            using var response = await Http.GetAsync(ReleaseInfo.HashFileUrl(version), timeout.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                Log.Info($"Проверка обновления: у версии {version} нет файла с хешем ({(int)response.StatusCode})");
+                return null;
+            }
+            var hash = ReleaseInfo.ParseHashFile(await response.Content.ReadAsStringAsync(timeout.Token));
+            if (hash is null) Log.Info($"Проверка обновления: файл с хешем версии {version} не разобран");
+            return hash;
+        }
+        catch (Exception ex)
+        {
+            Log.Info($"Проверка обновления: файл с хешем не получен: {ex.GetType().Name}");
+            return null;
+        }
+    }
+
+    private static async Task<ReleaseInfo?> FetchFromApiAsync()
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(CheckTimeout);
+            using var response = await Http.GetAsync(ApiLatestUrl, timeout.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                // 403 — исчерпан лимит запросов к API с этого адреса
+                Log.Info($"Проверка обновления через GitHub API: ответ {(int)response.StatusCode}");
+                return null;
+            }
+            var latest = ReleaseInfo.Parse(await response.Content.ReadAsStringAsync(timeout.Token));
+            if (latest is null) Log.Info("Проверка обновления: в последнем релизе нет Snapkit.exe с хешем");
+            return latest;
+        }
+        catch (Exception ex)
+        {
+            Log.Info($"Проверка обновления через GitHub API не удалась: {ex.GetType().Name}");
+            return null;
+        }
     }
 
     /// <summary>
@@ -69,6 +138,12 @@ public sealed class Updater(Func<AppSettings> settings, Action<AppSettings> save
     /// </summary>
     public async Task<bool> InstallAsync(ReleaseInfo latest, bool notify = true)
     {
+        // Без хеша скачанный файл нечем проверить — не ставим
+        if (latest.Sha256 is not { } sha256)
+        {
+            Log.Info($"Обновление {latest.Version}: нет хеша — не ставлю");
+            return false;
+        }
         if (_installing) return true;
         _installing = true;
         try
@@ -78,7 +153,7 @@ public sealed class Updater(Func<AppSettings> settings, Action<AppSettings> save
             using (var timeout = new CancellationTokenSource(DownloadTimeout))
                 file = await Http.GetByteArrayAsync(latest.ExeUrl, timeout.Token);
             // Файл, хеш которого не совпал, на диск не попадает и не запускается
-            if (!UpdatePolicy.HashMatches(file, latest.Sha256))
+            if (!UpdatePolicy.HashMatches(file, sha256))
             {
                 Log.Info($"Обновление {latest.Version}: хеш не совпал");
                 if (notify) Toasts.Error("Обновление не прошло проверку и не установлено");
@@ -104,10 +179,10 @@ public sealed class Updater(Func<AppSettings> settings, Action<AppSettings> save
         }
     }
 
-    private static HttpClient CreateClient()
+    private static HttpClient CreateClient(bool followRedirects)
     {
         // Сроки задаются на каждый запрос: проверка короткая, скачивание exe — долгое
-        var client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = followRedirects }) { Timeout = Timeout.InfiniteTimeSpan };
         client.DefaultRequestHeaders.UserAgent.ParseAdd($"Snapkit/{CurrentVersion}");
         return client;
     }
