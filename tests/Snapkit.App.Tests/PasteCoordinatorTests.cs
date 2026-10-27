@@ -7,6 +7,7 @@ using Snapkit.App.Paste;
 using Snapkit.App.Session;
 using Snapkit.Core;
 using Snapkit.Core.Input;
+using Snapkit.Core.Model;
 using Snapkit.Core.Session;
 
 namespace Snapkit.App.Tests;
@@ -114,6 +115,68 @@ public class PasteCoordinatorClipboardTests
 
         Assert.Contains(outcome?.Status, new PasteStatus?[] { PasteStatus.CompletedVerified, PasteStatus.StoppedTargetChanged });
         if (outcome?.Status == PasteStatus.CompletedVerified) Assert.Equal(3, presses);
+    }
+
+    [Fact]
+    public void AfterPaste_PackageIsPutBack()
+    {
+        // После вставки в один чат Ctrl+V в другом снова вставит картинку и текст, а не один текст
+        var dir = Path.Combine(Path.GetTempPath(), "snapkit-tests-" + Guid.NewGuid());
+        using var host = new ClipboardTestHost();
+        using var reader = new ForeignClipboard();
+        SessionService? session = null;
+        PackagePublisher? publisher = null;
+        PasteOutcome? outcome = null;
+        host.Run(async () =>
+        {
+            var image = BitmapSource.Create(4, 4, 96, 96, PixelFormats.Bgra32, null, new byte[4 * 4 * 4], 4 * 4);
+            image.Freeze();
+            session = new SessionService(new SessionStore(dir));
+            session.AddCapture(image, new RectI(0, 0, 4, 4), [], "");
+            publisher = new PackagePublisher(session, host.Service);
+            await publisher.PublishPackageAsync();
+            var paste = new PasteCoordinator(session, host.Service, new KeyRouter(() => default),
+                publisher.CreatePastePlan, () => false,
+                send: _ => reader.ReadAnonymously(reader.HasFormat("PNG")
+                    ? ForeignClipboard.Format("PNG")
+                    : ForeignClipboard.CF_UNICODETEXT),
+                restoreAfter: publisher.RestoreAfterPasteAsync);
+            outcome = await paste.PasteBatchAsync();
+        });
+
+        Assert.Contains(outcome?.Status, new PasteStatus?[] { PasteStatus.CompletedVerified, PasteStatus.StoppedTargetChanged });
+        Assert.True(host.Service.IsPackageCurrent());
+        Assert.True(publisher!.HasPasteContent);
+        host.Run(() => session!.FlushAsync());
+    }
+
+    [Fact]
+    public void PasteText_DoesNotPutPackageBack()
+    {
+        // Заметки после переноса карточки: если окно их не забрало, они остаются в буфере для ручного
+        // Ctrl+V — пакет (к тому же, может быть, другого снимка) поверх не кладётся
+        var dir = Path.Combine(Path.GetTempPath(), "snapkit-tests-" + Guid.NewGuid());
+        using var host = new ClipboardTestHost();
+        using var reader = new ForeignClipboard();
+        var restored = 0;
+        host.Run(async () =>
+        {
+            await host.Service.PublishAsync(new ClipboardPayload(null, null, "пакет"), ClipboardKind.Package, excludeFromHistory: true);
+            var paste = new PasteCoordinator(new SessionService(new SessionStore(dir)), host.Service, new KeyRouter(() => default),
+                () => PastePlan.Empty, () => false,
+                send: strokes =>
+                {
+                    if (strokes.Any(k => k.Vk == 0x56 && !k.Up)) reader.ReadAnonymously(ForeignClipboard.CF_UNICODETEXT);
+                },
+                restoreAfter: _ =>
+                {
+                    restored++;
+                    return Task.CompletedTask;
+                });
+            await paste.PasteTextAsync("Снимок A", notesCount: 0);
+        });
+
+        Assert.Equal(0, restored);
     }
 
     [Fact]

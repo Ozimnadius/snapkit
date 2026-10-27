@@ -463,7 +463,8 @@ public partial class App : Application
             Hotkeys = captureKeys.ToDictionary(key => key, _ => KeyAction.CaptureRegion),
         };
         _stripModel.EmptyHint = EmptyHintFor(captureKeys);
-        _paste = new PasteCoordinator(_session, _clipboard!, _router, _publisher.CreatePastePlan, () => _settings.ClearStripAfterPaste);
+        _paste = new PasteCoordinator(_session, _clipboard!, _router, _publisher.CreatePastePlan, () => _settings.ClearStripAfterPaste,
+            restoreAfter: _publisher.RestoreAfterPasteAsync);
         _hook = new KeyboardHookThread(_router, action => Dispatcher.BeginInvoke(() => OnKeyAction(action)));
         try { _hook.Start(); }
         catch (Exception ex)

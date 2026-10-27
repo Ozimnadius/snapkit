@@ -20,8 +20,9 @@ public sealed record PasteOutcome(PasteStatus Status, int ImagesPasted, int Note
 /// <param name="createPlan">Что вставить: план для последнего скопированного пакета.</param>
 /// <param name="clearAfterPaste">Настройка «Очищать ленту после вставки».</param>
 /// <param name="send">Отправка программных нажатий; по умолчанию SendInput (подменяется в тестах).</param>
+/// <param name="restoreAfter">Вернуть пакет в буфер после вставки по Ctrl+V.</param>
 public sealed class PasteCoordinator(SessionService session, ClipboardService clipboard, KeyRouter router, Func<PastePlan> createPlan,
-    Func<bool> clearAfterPaste, Action<IReadOnlyList<KeyStroke>>? send = null)
+    Func<bool> clearAfterPaste, Action<IReadOnlyList<KeyStroke>>? send = null, Func<PastePlan, Task>? restoreAfter = null)
 {
     private readonly Action<IReadOnlyList<KeyStroke>> _send = send ?? InputSender.Send;
 
@@ -48,16 +49,16 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
     public static TimeSpan ConfirmTimeoutFor(bool earlierStepUnconfirmed)
         => earlierStepUnconfirmed ? ShortConfirmTimeout : ConfirmTimeout;
 
-    public Task<PasteOutcome> PasteBatchAsync() => RunAsync(createPlan, "пачки");
+    public Task<PasteOutcome> PasteBatchAsync() => RunAsync(createPlan, "пачки", putBackPackage: true);
 
     /// <summary>
     /// Вставить в активное окно только текст (заметки после переноса карточки): тот же путь, что
     /// и у пачки, — проверка окна, Esc, повтор Ctrl+V, если текст не забран. Отметки не меняются.
     /// </summary>
     public Task<PasteOutcome> PasteTextAsync(string text, int notesCount)
-        => RunAsync(() => new PastePlan([], text, [], notesCount, FromStrip: false), "текста");
+        => RunAsync(() => new PastePlan([], text, [], notesCount, FromStrip: false), "текста", putBackPackage: false);
 
-    private async Task<PasteOutcome> RunAsync(Func<PastePlan> getPlan, string what)
+    private async Task<PasteOutcome> RunAsync(Func<PastePlan> getPlan, string what, bool putBackPackage)
     {
         if (IsRunning) return new PasteOutcome(PasteStatus.NothingToPaste, 0, 0);
         IsRunning = true;
@@ -71,51 +72,12 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
             var plan = getPlan();
             if (plan.IsEmpty && plan.Text.Length == 0) return new PasteOutcome(PasteStatus.NothingToPaste, 0, 0);
 
-            // Всё готовим заранее, чтобы между вставками не было долгих пауз
-            var steps = plan.Images
-                .Select(image => new ClipboardPayload(ImageCodecs.EncodePng(image), ImageCodecs.EncodeDib(image), null))
-                .ToList();
-            if (plan.Text.Length > 0) steps.Add(new ClipboardPayload(null, null, plan.Text));
-            var notes = plan.NotesCount;
-
-            await WaitForCtrlRelease();
-
-            var verified = true;
-            var images = 0;
-            foreach (var step in steps)
-            {
-                if (Foreground.Current != target) return new PasteOutcome(PasteStatus.StoppedTargetChanged, images, notes);
-                if (router.EscapePressedDuringPaste) return new PasteOutcome(PasteStatus.StoppedByUser, images, notes);
-
-                var isText = step.Png is null;
-                var taken = clipboard.ExpectRender(targetPid,
-                    isText && verified ? TextFirstTimeout : ConfirmTimeoutFor(earlierStepUnconfirmed: !verified));
-                await clipboard.PublishAsync(step, ClipboardKind.PasteStep, excludeFromHistory: true);
-                router.Resync();
-                clipboard.PasteKeysSending();
-                _send(PasteKeys.CtrlV(router.Logical));
-                var confirmed = await taken;
-                // Telegram после картинки открывает окно с подписью: первый Ctrl+V с текстом приходит,
-                // пока поле ещё не готово, и теряется. Текст точно не прочитан — нажимаем Ctrl+V ещё раз
-                if (!confirmed && isText)
-                {
-                    if (Foreground.Current != target) return new PasteOutcome(PasteStatus.StoppedTargetChanged, images, notes);
-                    if (router.EscapePressedDuringPaste) return new PasteOutcome(PasteStatus.StoppedByUser, images, notes);
-                    Log.Info("Текст не забран — повторяю Ctrl+V");
-                    taken = clipboard.ExpectRender(targetPid, ConfirmTimeout);
-                    router.Resync();
-                    clipboard.PasteKeysSending();
-                    _send(PasteKeys.CtrlV(router.Logical));
-                    confirmed = await taken;
-                }
-                verified &= confirmed;
-                if (step.Png is not null) images++;
-                await Task.Delay(confirmed ? VerifiedPause : UnverifiedPause);
-            }
-
-            if (plan.CaptureIds.Count > 0) session.MarkSent(plan.CaptureIds);
-            if (plan.FromStrip && clearAfterPaste()) session.ClearAll();
-            return new PasteOutcome(verified ? PasteStatus.CompletedVerified : PasteStatus.CompletedUnverified, images, notes);
+            // После вставки по Ctrl+V пакет кладётся обратно: следующий Ctrl+V в другом чате снова вставит
+            // картинки и текст. Заметки после переноса карточки остаются в буфере для ручного Ctrl+V
+            var putBack = putBackPackage && restoreAfter is not null && clipboard.IsPackageCurrent();
+            var outcome = await PasteStepsAsync(plan, target, targetPid);
+            if (putBack) await PutBackAsync(plan);
+            return outcome;
         }
         catch (ClipboardBusyException)
         {
@@ -136,6 +98,68 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
             {
                 Log.Error("восстановление клавиш после вставки", ex);
             }
+        }
+    }
+
+    /// <summary>Картинки и текст по одному шагу: в буфер, Ctrl+V, ждать, пока окно заберёт.</summary>
+    private async Task<PasteOutcome> PasteStepsAsync(PastePlan plan, nint target, int targetPid)
+    {
+        // Всё готовим заранее, чтобы между вставками не было долгих пауз
+        var steps = plan.Images
+            .Select(image => new ClipboardPayload(ImageCodecs.EncodePng(image), ImageCodecs.EncodeDib(image), null))
+            .ToList();
+        if (plan.Text.Length > 0) steps.Add(new ClipboardPayload(null, null, plan.Text));
+        var notes = plan.NotesCount;
+
+        await WaitForCtrlRelease();
+
+        var verified = true;
+        var images = 0;
+        foreach (var step in steps)
+        {
+            if (Foreground.Current != target) return new PasteOutcome(PasteStatus.StoppedTargetChanged, images, notes);
+            if (router.EscapePressedDuringPaste) return new PasteOutcome(PasteStatus.StoppedByUser, images, notes);
+
+            var isText = step.Png is null;
+            var taken = clipboard.ExpectRender(targetPid,
+                isText && verified ? TextFirstTimeout : ConfirmTimeoutFor(earlierStepUnconfirmed: !verified));
+            await clipboard.PublishAsync(step, ClipboardKind.PasteStep, excludeFromHistory: true);
+            router.Resync();
+            clipboard.PasteKeysSending();
+            _send(PasteKeys.CtrlV(router.Logical));
+            var confirmed = await taken;
+            // Telegram после картинки открывает окно с подписью: первый Ctrl+V с текстом приходит,
+            // пока поле ещё не готово, и теряется. Текст точно не прочитан — нажимаем Ctrl+V ещё раз
+            if (!confirmed && isText)
+            {
+                if (Foreground.Current != target) return new PasteOutcome(PasteStatus.StoppedTargetChanged, images, notes);
+                if (router.EscapePressedDuringPaste) return new PasteOutcome(PasteStatus.StoppedByUser, images, notes);
+                Log.Info("Текст не забран — повторяю Ctrl+V");
+                taken = clipboard.ExpectRender(targetPid, ConfirmTimeout);
+                router.Resync();
+                clipboard.PasteKeysSending();
+                _send(PasteKeys.CtrlV(router.Logical));
+                confirmed = await taken;
+            }
+            verified &= confirmed;
+            if (step.Png is not null) images++;
+            await Task.Delay(confirmed ? VerifiedPause : UnverifiedPause);
+        }
+
+        if (plan.CaptureIds.Count > 0) session.MarkSent(plan.CaptureIds);
+        if (plan.FromStrip && clearAfterPaste()) session.ClearAll();
+        return new PasteOutcome(verified ? PasteStatus.CompletedVerified : PasteStatus.CompletedUnverified, images, notes);
+    }
+
+    private async Task PutBackAsync(PastePlan plan)
+    {
+        try
+        {
+            await restoreAfter!(plan);
+        }
+        catch (ClipboardBusyException)
+        {
+            Log.Info("Вернуть пакет в буфер после вставки не удалось: буфер занят");
         }
     }
 

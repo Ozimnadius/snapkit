@@ -147,6 +147,65 @@ public sealed class PackagePublisherTests : IDisposable
     }
 
     [Fact]
+    public void AfterStripPaste_SameCapturesStayInClipboard()
+    {
+        // Вставили всю ленту в Telegram — следующий Ctrl+V (в Claude) вставит те же снимки,
+        // хотя они уже с галочками
+        SessionService? session = null;
+        PackagePublisher? publisher = null;
+        Guid a = default, b = default;
+        PastePlan? again = null;
+        _host.Run(async () =>
+        {
+            session = new SessionService(new SessionStore(_dir));
+            a = session.AddCapture(Gray(10, 10), new RectI(0, 0, 10, 10), [Box("a")], "");
+            b = session.AddCapture(Gray(10, 10), new RectI(0, 0, 10, 10), [Box("b")], "");
+            publisher = new PackagePublisher(session, _host.Service);
+            await publisher.PublishPackageAsync();
+            var plan = publisher.CreatePastePlan();
+            // Так буфер выглядит после вставки: последний шаг — текст, снимки отмечены отправленными
+            await _host.Service.PublishAsync(new ClipboardPayload(null, null, plan.Text), ClipboardKind.PasteStep, excludeFromHistory: true);
+            session.MarkSent(plan.CaptureIds);
+            await publisher.RestoreAfterPasteAsync(plan);
+            again = publisher.CreatePastePlan();
+        });
+
+        Assert.True(_host.Service.IsPackageCurrent());
+        Assert.True(publisher!.HasPasteContent);
+        Assert.Equal(new[] { a, b }, again!.CaptureIds);
+        Assert.Equal(0, session!.Model.UnsentCount);
+        _host.Run(() => session.FlushAsync());
+    }
+
+    [Fact]
+    public void AfterSinglePaste_SnapshotStaysInClipboard()
+    {
+        // «Готово» или «Копировать снимок», вставка в один чат — в другой Ctrl+V вставит тот же снимок
+        SessionService? session = null;
+        PackagePublisher? publisher = null;
+        Guid second = default;
+        PastePlan? again = null;
+        _host.Run(async () =>
+        {
+            session = new SessionService(new SessionStore(_dir));
+            session.AddCapture(Gray(30, 20), new RectI(0, 0, 30, 20), [Box("первый")], "");
+            second = session.AddCapture(Gray(40, 10), new RectI(0, 0, 40, 10), [Box("второй")], "");
+            publisher = new PackagePublisher(session, _host.Service);
+            await publisher.PublishCaptureAsync(second);
+            var plan = publisher.CreatePastePlan();
+            await _host.Service.PublishAsync(new ClipboardPayload(null, null, plan.Text), ClipboardKind.PasteStep, excludeFromHistory: true);
+            session.MarkSent(plan.CaptureIds);
+            await publisher.RestoreAfterPasteAsync(plan);
+            again = publisher.CreatePastePlan();
+        });
+
+        Assert.True(_host.Service.IsPackageCurrent());
+        Assert.Equal(new[] { second }, again!.CaptureIds);
+        Assert.Equal("Снимок B\r\nB1 — второй", _foreign.ReadText());
+        _host.Run(() => session!.FlushAsync());
+    }
+
+    [Fact]
     public void CopyAll_WhenAllSent_ResendsWholeStrip()
     {
         SessionService? session = null;

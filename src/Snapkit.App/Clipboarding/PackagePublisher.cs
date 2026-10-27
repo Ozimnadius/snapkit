@@ -22,7 +22,8 @@ public sealed record PastePlan(IReadOnlyList<BitmapSource> Images, string Text, 
 
 /// <summary>
 /// Пакет в буфере обмена: картинка последнего снимка пакета и текст для чата.
-/// Пакетом бывает лента (неотправленные снимки), один снимок из ленты или черновик из редактора.
+/// Пакетом бывает лента (неотправленные снимки), один снимок из ленты, черновик из редактора
+/// или снимки, которые только что вставили (после вставки пакет возвращается в буфер).
 /// Пока пакет в буфере, Ctrl+V вставляет его целиком — картинки и текст; без перехвата обычная
 /// вставка даст хотя бы картинку (Paint) или текст (Блокнот).
 /// </summary>
@@ -32,6 +33,8 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
     private sealed record StripSource : Source;
     private sealed record SingleSource(Guid CaptureId) : Source;
     private sealed record DraftSource(Capture Capture, BitmapSource Image) : Source;
+    // Снимки ленты, которые только что вставили: они уже отправлены, но Ctrl+V вставит их снова
+    private sealed record PastedSource(IReadOnlyList<Guid> Ids) : Source;
 
     // Что лежит в буфере сейчас; меняется только на UI-потоке
     private Source? _current;
@@ -42,6 +45,7 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
         StripSource => session.Model.UnsentCount > 0,
         SingleSource single => session.Model.Captures.Any(c => c.Id == single.CaptureId),
         DraftSource => true,
+        PastedSource pasted => session.Model.Captures.Any(c => pasted.Ids.Contains(c.Id)),
         _ => false,
     };
 
@@ -56,8 +60,22 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
             => Plan([new LetteredCapture(CaptureLetters.Assign(session.Model.Captures)[capture.Id], capture)], fromStrip: false),
         DraftSource draft => Plan([new LetteredCapture(CaptureLetters.ForNew(session.Model.Captures.Count, SessionModel.MaxCaptures),
             draft.Capture)], fromStrip: false, draft.Image),
+        PastedSource pasted => Plan(Lettered(pasted.Ids), fromStrip: false),
         _ => PastePlan.Empty,
     };
+
+    /// <summary>
+    /// После вставки по Ctrl+V вернуть в буфер то, что вставили: следующий Ctrl+V в другом чате снова
+    /// вставит картинки и текст, а не последний шаг вставки. Снимки ленты к этому времени отмечены
+    /// отправленными, поэтому пакет ленты запоминается списком вставленных снимков. В историю буфера
+    /// повтор не пишется — там уже есть первая копия.
+    /// </summary>
+    public Task RestoreAfterPasteAsync(PastePlan pasted)
+    {
+        if (_current is null) return Task.CompletedTask;
+        var source = _current is StripSource && pasted.FromStrip ? new PastedSource(pasted.CaptureIds) : _current;
+        return PublishAsync(source, excludeFromHistory: true);
+    }
 
     /// <summary>Пакет ленты — неотправленные снимки.</summary>
     public Task PublishPackageAsync() => PublishAsync(new StripSource());
@@ -96,7 +114,7 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
         return PublishAsync(new DraftSource(draft, source));
     }
 
-    private async Task PublishAsync(Source source)
+    private async Task PublishAsync(Source source, bool excludeFromHistory = false)
     {
         var previous = _current;
         _current = source;
@@ -109,7 +127,17 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
         var last = plan.Images[^1];
         await clipboard.PublishAsync(
             new ClipboardPayload(ImageCodecs.EncodePng(last), ImageCodecs.EncodeDib(last), plan.Text.Length == 0 ? null : plan.Text),
-            ClipboardKind.Package, excludeFromHistory: false);
+            ClipboardKind.Package, excludeFromHistory);
+    }
+
+    // Снимки ленты из списка — в порядке ленты, с буквами их мест; удалённые пропускаются
+    private List<LetteredCapture> Lettered(IReadOnlyList<Guid> ids)
+    {
+        var letters = CaptureLetters.Assign(session.Model.Captures);
+        return session.Model.Captures
+            .Where(c => ids.Contains(c.Id))
+            .Select(c => new LetteredCapture(letters[c.Id], c))
+            .ToList();
     }
 
     private PastePlan Plan(IReadOnlyList<LetteredCapture> package, bool fromStrip, BitmapSource? draftImage = null)
