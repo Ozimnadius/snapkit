@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using Microsoft.Win32;
+using Snapkit.App.Rendering;
 using Snapkit.Core.Theming;
 
 namespace Snapkit.App.Shell;
@@ -28,6 +29,19 @@ public static class ThemeManager
         resources[ChipKey] = Brush(palette.Chip);
         resources[WarningTextKey] = Brush(palette.WarningText);
     }
+
+    /// <summary>Цвет программы в ресурсах: AccentBrush — заливка (градиент или цвет), AccentHoverBrush — первый цвет + 15 % белого.</summary>
+    public static void ApplyAccent(AccentOption option)
+    {
+        var resources = Application.Current.Resources;
+        resources["AccentBrush"] = Palette.CreateAccentFill(option);
+        var first = (Color)ColorConverter.ConvertFromString(option.First);
+        var hover = new SolidColorBrush(Color.FromRgb(Lighter(first.R), Lighter(first.G), Lighter(first.B)));
+        hover.Freeze();
+        resources["AccentHoverBrush"] = hover;
+    }
+
+    private static byte Lighter(byte channel) => (byte)Math.Round(channel + (255 - channel) * 0.15);
 
     /// <summary>Тема приложений Windows светлая (AppsUseLightTheme == 1); нет значения — тёмная.</summary>
     public static bool WindowsAppsLight()

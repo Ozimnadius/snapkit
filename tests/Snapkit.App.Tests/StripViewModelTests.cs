@@ -50,6 +50,20 @@ public class StripViewModelTests
     });
 
     [Fact]
+    public void ForgetThumbnails_RedrawsOnNextRefresh() => StaRunner.Run(() =>
+    {
+        // Сменили цвет программы — кружки заметок на миниатюрах надо перерисовать
+        var vm = new StripViewModel();
+        var a = Cap();
+        var rendered = 0;
+        BitmapSource Render(Capture c, char l) { rendered++; return Thumb(); }
+        vm.Refresh([a], Render);
+        vm.ForgetThumbnails();
+        vm.Refresh([a], Render);
+        Assert.Equal(2, rendered);
+    });
+
+    [Fact]
     public void SoftWarning_FromTenCaptures() => StaRunner.Run(() =>
     {
         var vm = new StripViewModel();

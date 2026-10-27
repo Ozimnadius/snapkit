@@ -1,12 +1,35 @@
 using System.Collections.Concurrent;
+using System.Windows;
 using System.Windows.Media;
+using Snapkit.Core.Theming;
 
 namespace Snapkit.App.Rendering;
 
-/// <summary>Цвета программы: акцент (кружки, рамка выделения, «Готово») и палитра разметки.</summary>
+/// <summary>Цвета программы: цвет программы (кружки, рамка выделения, «Готово») и палитра разметки.</summary>
 public static class Palette
 {
-    public const string Accent = "#2F7BF5";
+    /// <summary>Первый цвет программы — рамка выделения, маркеры, обводки.</summary>
+    public static string Accent => Volatile.Read(ref _accent).First;
+
+    /// <summary>Заливка цветом программы — кнопки, кружки заметок; у градиента — под 135°. Заморожена.</summary>
+    public static Brush AccentFill => Volatile.Read(ref _accentFill);
+
+    /// <summary>Заливка для варианта цвета программы — без общего состояния.</summary>
+    public static Brush CreateAccentFill(AccentOption option)
+    {
+        if (option.Second is null) return Brush(option.First);
+        var brush = new LinearGradientBrush(Color(option.First), Color(option.Second), new Point(0, 0), new Point(1, 1));
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>Сменить цвет программы («#RRGGBB» или «#RRGGBB|#RRGGBB»; непонятное — синий по умолчанию).</summary>
+    public static void SetAccent(string value)
+    {
+        var option = AccentOptions.Parse(value);
+        Volatile.Write(ref _accentFill, CreateAccentFill(option));
+        Volatile.Write(ref _accent, option);
+    }
     public const string PanelBackground = "#1E2128";
     public const string PanelText = "#E8EAED";
 
@@ -17,6 +40,11 @@ public static class Palette
     public const double DefaultThickness = 4;
 
     private static readonly ConcurrentDictionary<string, SolidColorBrush> Brushes = new(StringComparer.OrdinalIgnoreCase);
+
+    // Цвет программы читается и с потоков отрисовки: меняется целиком, а не по частям.
+    // Объявлен после Brushes: статические поля создаются по порядку, а заливке нужен словарь кистей
+    private static AccentOption _accent = AccentOptions.Parse(AccentOptions.Default);
+    private static Brush _accentFill = CreateAccentFill(_accent);
 
     public static Color Color(string hex) => (Color)ColorConverter.ConvertFromString(hex);
 

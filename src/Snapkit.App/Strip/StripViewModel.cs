@@ -40,6 +40,9 @@ public sealed class StripViewModel : ObservableObject
 
     public string SoftWarningText { get; } = $"Чаты обычно принимают до {SessionModel.SoftWarningCount} картинок за раз";
 
+    /// <summary>Забыть миниатюры: следующий Refresh перерисует все (сменился цвет программы).</summary>
+    public void ForgetThumbnails() => _thumbs = [];
+
     public void Refresh(IReadOnlyList<Capture> captures, Func<Capture, char, BitmapSource> renderThumbnail)
     {
         var letters = CaptureLetters.Assign(captures);

@@ -98,6 +98,7 @@ public partial class App : Application
         }
         Toasts.Enabled = _settings.ShowNotifications;
         ApplyTheme();
+        ApplyAccent();
         Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         ApplyAutoStart();
 
@@ -756,6 +757,13 @@ public partial class App : Application
 
     /// <summary>Тема из настроек; «Как в Windows» — по теме приложений Windows.</summary>
     private void ApplyTheme() => ThemeManager.Apply(ThemePalette.Resolve(_settings.Theme, ThemeManager.WindowsAppsLight()));
+
+    /// <summary>Цвет программы из настроек: для картинок (кружки заметок) и для окон.</summary>
+    private void ApplyAccent()
+    {
+        Palette.SetAccent(_settings.AccentColor);
+        ThemeManager.ApplyAccent(AccentOptions.Parse(_settings.AccentColor));
+    }
 
     // Пользователь сменил тему Windows — при «Как в Windows» перекрашиваемся сразу
     private void OnUserPreferenceChanged(object sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)

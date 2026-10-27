@@ -89,7 +89,7 @@ public static class AnnotationPainter
     {
         var c = new Point(center.X, center.Y);
         var r = AnnotationGeometry.PinDiameter / 2;
-        dc.DrawEllipse(Palette.Brush(Palette.Accent), Pen(Brushes.White, 1.5), c, r, r);
+        dc.DrawEllipse(Palette.AccentFill, Pen(Brushes.White, 1.5), c, r, r);
         if (label.Length == 0) return;
         var text = Text(label, PinFace, PinFontSize, Brushes.White);
         dc.DrawText(text, new Point(c.X - text.Width / 2, c.Y - text.Height / 2));
