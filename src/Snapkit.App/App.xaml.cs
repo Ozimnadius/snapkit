@@ -136,6 +136,12 @@ public partial class App : Application
             SaveCustomColors = colors => SaveSettings(_settings with { CustomColors = colors }),
         };
         _capture.CaptureAdded += (_, _) => ApplyStripView(StripPresence.AfterNewCapture(_view, _settings.ShowStrip));
+        // Последняя снятая область — для «Предлагать ту же область»
+        _capture.CaptureAdded += (_, id) =>
+        {
+            if (_session.Model.Captures.FirstOrDefault(c => c.Id == id) is { } capture && _settings.LastRegion != capture.ScreenBounds)
+                SaveSettings(_settings with { LastRegion = capture.ScreenBounds });
+        };
         // «Готово» — как «Копировать снимок»: в буфере только этот снимок, о чём и сообщаем
         _capture.CaptureDone += (_, id) =>
         {
@@ -281,7 +287,7 @@ public partial class App : Application
         _tray.ShowStripToggled += (_, show) => SetShowStrip(show);
     }
 
-    private void StartNewCapture() => _capture.StartNewCapture();
+    private void StartNewCapture() => _capture.StartNewCapture(_settings.ProposeLastRegion ? _settings.LastRegion : null);
 
     /// <summary>
     /// Единственное место, которое показывает и прячет ленту и капсулу. Свёрнута лента или нет,
@@ -456,7 +462,7 @@ public partial class App : Application
         var captureKeys = HotkeyParser.ParseList(_settings.CaptureHotkeys);
         _router = new KeyRouter(() => new PasteContext(_hasPasteContent, IsPackageCurrent(), Foreground.IsOwn()), ModifierState.Read)
         {
-            Hotkeys = captureKeys.ToDictionary(key => key, _ => KeyAction.CaptureRegion),
+            Hotkeys = HotkeyRules.BuildMap(_settings),
         };
         _stripModel.EmptyHint = EmptyHintFor(captureKeys);
         _paste = new PasteCoordinator(_session, _clipboard!, _router, _publisher.CreatePastePlan, () => _settings.ClearStripAfterPaste,
@@ -522,6 +528,9 @@ public partial class App : Application
         {
             case KeyAction.CaptureRegion:
                 StartNewCapture();
+                break;
+            case KeyAction.CaptureFullScreen:
+                _capture.StartFullScreenCapture();
                 break;
             case KeyAction.PasteBatch:
                 PasteBatch();

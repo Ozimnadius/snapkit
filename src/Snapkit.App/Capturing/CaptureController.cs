@@ -47,7 +47,12 @@ public sealed partial class CaptureController(SessionService session, Action hid
     /// </summary>
     public event EventHandler<Guid>? CaptureDone;
 
-    public void StartNewCapture()
+    /// <summary>
+    /// Снимок области. preset — рамка в физических пикселях экрана: окно её монитора сразу ставит её
+    /// и открывает редактор («Предлагать ту же область», снимок всего экрана). Не помещается
+    /// целиком на один монитор — обычное выделение.
+    /// </summary>
+    public void StartNewCapture(RectI? preset = null)
     {
         if (IsOpen) return;
         _previousForeground = Foreground.Current;
@@ -88,8 +93,19 @@ public sealed partial class CaptureController(SessionService session, Action hid
 
         var underCursor = ScreenCapturer.MonitorUnderCursor();
         var active = _windows.FirstOrDefault(w => w.Monitor.Handle == underCursor.Handle) ?? _windows[0];
+        if (preset is { } region
+            && _windows.FirstOrDefault(w => RegionMemory.FitOnScreen(region, [w.Monitor.Bounds]) is not null) is { } home)
+        {
+            var bounds = home.Monitor.Bounds;
+            home.PresetRegion(new RectI(region.X - bounds.X, region.Y - bounds.Y, region.Width, region.Height));
+            StartEditor(home);
+            active = home;
+        }
         Foreground.Activate(active);
     }
+
+    /// <summary>Весь монитор под мышью — сразу в редакторе, без выделения рамки.</summary>
+    public void StartFullScreenCapture() => StartNewCapture(ScreenCapturer.MonitorUnderCursor().Bounds);
 
     /// <summary>
     /// Открыть снимок из ленты: он встаёт на то же место экрана, где его сняли,
