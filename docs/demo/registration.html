@@ -1,0 +1,44 @@
+<!doctype html>
+<!-- Учебная страница для демо-ролика Snapkit: нарочные ошибки вёрстки, которые отмечаются на снимках -->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Регистрация</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         background: linear-gradient(135deg, #eef2f8, #dde5f1); font-family: "Segoe UI", sans-serif; color: #1f2937; }
+  .card { width: 420px; background: #fff; border-radius: 16px; padding: 32px 36px 36px;
+          box-shadow: 0 18px 40px rgba(31, 41, 55, .12); }
+  .logo { width: 44px; height: 44px; border-radius: 12px; background: #4f46e5; margin-bottom: 18px; }
+  /* Ошибка A2: опечатка в заголовке */
+  h1 { margin: 0 0 6px; font-size: 26px; }
+  p.lead { margin: 0 0 24px; color: #6b7280; }
+  label { display: block; font-size: 14px; font-weight: 600; margin: 14px 0 6px; }
+  input { width: 100%; box-sizing: border-box; padding: 11px 13px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 15px; }
+  /* Ошибка A1: поле Email уехало вправо и вылезает за карточку */
+  input.email { margin-left: 60px; }
+  .row { display: flex; align-items: center; gap: 8px; margin: 18px 0 22px; font-size: 14px; color: #4b5563; }
+  /* Ошибка B1: текст кнопки не помещается */
+  button { width: 160px; height: 46px; white-space: nowrap; overflow: hidden; border: 0; border-radius: 10px;
+           background: #4f46e5; color: #fff; font-size: 16px; font-weight: 600; padding: 0 18px; text-align: left; }
+  .foot { margin-top: 18px; font-size: 14px; color: #6b7280; }
+  .foot a { color: #4f46e5; text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo"></div>
+    <h1>Регистрацая</h1>
+    <p class="lead">Создайте аккаунт, чтобы продолжить</p>
+    <label>Имя</label>
+    <input value="Анна Смирнова">
+    <label>Email</label>
+    <input class="email" value="anna@example.com">
+    <label>Пароль</label>
+    <input type="password" value="секретный-пароль">
+    <div class="row"><input type="checkbox" style="width:auto" checked> Согласен с условиями</div>
+    <button>Зарегистрироваться</button>
+    <div class="foot">Уже есть аккаунт? <a href="#">Войти</a></div>
+  </div>
+</body>
+</html>
