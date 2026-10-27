@@ -63,5 +63,7 @@ jobs:
           "@
           $notes = ($notes -split "`n" | ForEach-Object { $_.Trim() }) -join "`n"
           $changes = Get-Content changes.md -Raw -Encoding utf8
-          Set-Content -Path release-notes.md -Value ($changes.Trim() + "`n`n---`n`n## Установка`n`n" + $notes) -Encoding utf8
+          # Ролик из README — первым: страница релиза README не показывает
+          $demo = '![Как работает Snapkit](https://github.com/Ozimnadius/snapkit/raw/main/docs/demo/snapkit-demo.gif)'
+          Set-Content -Path release-notes.md -Value ($demo + "`n`n" + $changes.Trim() + "`n`n---`n`n## Установка`n`n" + $notes) -Encoding utf8
           gh release create '${{ github.ref_name }}' $exe $sha --title 'Snapkit ${{ github.ref_name }}' --notes-file release-notes.md
