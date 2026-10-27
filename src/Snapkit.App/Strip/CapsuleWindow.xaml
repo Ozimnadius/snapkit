@@ -7,11 +7,11 @@
         ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
         Topmost="{Binding IsTopmost}"
         FontFamily="Segoe UI" FontSize="13"
-        Foreground="{StaticResource TextBrush}"
+        Foreground="{DynamicResource TextBrush}"
         UseLayoutRounding="True">
     <!-- Капсула: за неё саму окно перетаскивается -->
     <Border Height="40" CornerRadius="20" Padding="4,4,6,4" Margin="6"
-            Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
+            Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1"
             MouseLeftButtonDown="Capsule_MouseLeftButtonDown">
         <Border.Effect>
             <DropShadowEffect BlurRadius="10" ShadowDepth="2" Direction="270" Opacity="0.45" Color="Black" />
@@ -22,20 +22,20 @@
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
                         <Grid>
-                            <Ellipse x:Name="Circle" Fill="{StaticResource AccentBrush}" />
+                            <Ellipse x:Name="Circle" Fill="{DynamicResource AccentBrush}" />
                             <TextBlock Text="&#xE722;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="White"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Circle" Property="Fill" Value="{StaticResource AccentHoverBrush}" />
+                                <Setter TargetName="Circle" Property="Fill" Value="{DynamicResource AccentHoverBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Button.Template>
             </Button>
             <TextBlock Text="Snapkit" Margin="9,0,7,0" FontWeight="SemiBold" VerticalAlignment="Center" />
-            <Border Background="#33FFFFFF" CornerRadius="9" MinWidth="20" Height="18" Padding="6,0"
+            <Border Background="{DynamicResource ChipBrush}" CornerRadius="9" MinWidth="20" Height="18" Padding="6,0"
                     VerticalAlignment="Center" ToolTip="Снимков на ленте">
                 <TextBlock Text="{Binding CaptureCount}" FontSize="11" FontWeight="SemiBold"
                            HorizontalAlignment="Center" VerticalAlignment="Center" />

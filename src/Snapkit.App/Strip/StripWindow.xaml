@@ -9,14 +9,14 @@
         Topmost="{Binding IsTopmost}"
         AllowDrop="True" DragOver="Window_DragOver" Drop="Window_Drop" DragLeave="Window_DragLeave"
         FontFamily="Segoe UI" FontSize="13"
-        Foreground="{StaticResource TextBrush}"
+        Foreground="{DynamicResource TextBrush}"
         UseLayoutRounding="True">
     <Window.Resources>
         <shell:BoolToVisibilityConverter x:Key="BoolToVisibility" />
         <shell:NotNullToVisibilityConverter x:Key="NotNullToVisibility" />
     </Window.Resources>
 
-    <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorderBrush}"
+    <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource PanelBorderBrush}"
             BorderThickness="1" CornerRadius="10" Padding="10,6,10,10">
         <StackPanel>
             <!-- Заголовок: за него окно перетаскивается -->
@@ -31,7 +31,7 @@
                 <Image x:Name="LogoImage" Width="18" Height="18" VerticalAlignment="Center"
                        RenderOptions.BitmapScalingMode="HighQuality" />
                 <TextBlock Grid.Column="1" Text="Snapkit" Margin="6,0,5,0" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Border Grid.Column="2" Background="#33FFFFFF" CornerRadius="9" MinWidth="20" Height="18"
+                <Border Grid.Column="2" Background="{DynamicResource ChipBrush}" CornerRadius="9" MinWidth="20" Height="18"
                         Padding="6,0" VerticalAlignment="Center" ToolTip="Снимков на ленте">
                     <TextBlock Text="{Binding CaptureCount}" FontSize="11" FontWeight="SemiBold"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -46,15 +46,15 @@
             </Grid>
 
             <!-- Пустая лента -->
-            <Border Margin="0,6,0,0" Height="96" CornerRadius="8" Background="{StaticResource PanelRaisedBrush}"
+            <Border Margin="0,6,0,0" Height="96" CornerRadius="8" Background="{DynamicResource PanelRaisedBrush}"
                     Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
                 <TextBlock Text="{Binding EmptyHint}" TextWrapping="Wrap" TextAlignment="Center" Margin="14,0"
-                           VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
+                           VerticalAlignment="Center" Foreground="{DynamicResource MutedTextBrush}" />
             </Border>
 
             <!-- Карточки стопкой, как у Snapik: по полоске каждой карточки виден сам снимок; новая — снизу и видна целиком -->
-            <Border Margin="0,6,0,0" Padding="5" CornerRadius="10" Background="{StaticResource PanelRaisedBrush}"
-                    BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
+            <Border Margin="0,6,0,0" Padding="5" CornerRadius="10" Background="{DynamicResource PanelRaisedBrush}"
+                    BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1"
                     Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
             <ScrollViewer MaxHeight="460" VerticalScrollBarVisibility="Auto">
                 <Grid>
@@ -69,7 +69,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border x:Name="Card" Height="96" CornerRadius="7" BorderThickness="1"
-                                    BorderBrush="#26FFFFFF" Background="{StaticResource PanelBrush}"
+                                    BorderBrush="{DynamicResource PanelBorderBrush}" Background="{DynamicResource PanelBrush}"
                                     Cursor="Hand" Tag="{Binding Id}" MouseLeftButtonUp="Card_MouseLeftButtonUp"
                                     PreviewMouseLeftButtonDown="Card_PreviewMouseLeftButtonDown" PreviewMouseMove="Card_PreviewMouseMove"
                                     ToolTip="Открыть снимок">
@@ -85,7 +85,7 @@
                                             HorizontalAlignment="Left" VerticalAlignment="Top">
                                         <StackPanel Orientation="Horizontal">
                                             <Grid Width="20" Height="20">
-                                                <Ellipse Fill="{StaticResource AccentBrush}" />
+                                                <Ellipse Fill="{DynamicResource AccentBrush}" />
                                                 <TextBlock Text="{Binding Letter}" Foreground="White" FontWeight="Bold" FontSize="11"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                                             </Grid>
@@ -115,7 +115,7 @@
                             <DataTemplate.Triggers>
                                 <Trigger SourceName="Card" Property="IsMouseOver" Value="True">
                                     <Setter TargetName="CardButtons" Property="Visibility" Value="Visible" />
-                                    <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                    <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                     <Setter TargetName="Card" Property="Effect">
                                         <Setter.Value>
                                             <DropShadowEffect BlurRadius="14" ShadowDepth="3" Direction="270" Opacity="0.6" Color="Black" />
@@ -127,13 +127,13 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <!-- Линия «сюда встанет» при перетаскивании карточки -->
-                <Border x:Name="DropLine" Height="3" CornerRadius="1.5" Background="{StaticResource AccentBrush}"
+                <Border x:Name="DropLine" Height="3" CornerRadius="1.5" Background="{DynamicResource AccentBrush}"
                         VerticalAlignment="Top" IsHitTestVisible="False" Visibility="Collapsed" Panel.ZIndex="200" />
                 </Grid>
             </ScrollViewer>
             </Border>
 
-            <TextBlock Margin="2,8,2,0" TextWrapping="Wrap" FontSize="12" Foreground="#FBBF5A"
+            <TextBlock Margin="2,8,2,0" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource WarningTextBrush}"
                        Text="{Binding SoftWarningText}"
                        Visibility="{Binding ShowSoftWarning, Converter={StaticResource BoolToVisibility}}" />
 

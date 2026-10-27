@@ -1,24 +1,24 @@
 <UserControl x:Class="Snapkit.App.Editor.CommentsPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Width="300" FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}">
-    <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorderBrush}"
+             Width="300" FontFamily="Segoe UI" FontSize="13" Foreground="{DynamicResource TextBrush}">
+    <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource PanelBorderBrush}"
             BorderThickness="1" CornerRadius="12" Padding="14,12">
         <DockPanel>
             <TextBlock DockPanel.Dock="Top" Text="Комментарии" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10" />
 
             <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
-                <TextBlock Text="Комментарий к снимку" Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="0,0,0,6" />
-                <Border Background="{StaticResource PanelRaisedBrush}" CornerRadius="8" Padding="8,6">
+                <TextBlock Text="Комментарий к снимку" Foreground="{DynamicResource MutedTextBrush}" FontSize="12" Margin="0,0,0,6" />
+                <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="8" Padding="8,6">
                     <TextBox x:Name="SnapshotNoteText" Background="Transparent" BorderThickness="0" Padding="0"
-                             Foreground="{StaticResource TextBrush}" CaretBrush="White" TextWrapping="Wrap"
+                             Foreground="{DynamicResource TextBrush}" CaretBrush="White" TextWrapping="Wrap"
                              AcceptsReturn="True" MinHeight="54" MaxHeight="140" VerticalScrollBarVisibility="Auto"
                              TextChanged="SnapshotNoteText_TextChanged" />
                 </Border>
             </StackPanel>
 
             <Grid>
-                <TextBlock x:Name="EmptyText" Text="Нет комментариев" Foreground="{StaticResource MutedTextBrush}" />
+                <TextBlock x:Name="EmptyText" Text="Нет комментариев" Foreground="{DynamicResource MutedTextBrush}" />
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <ItemsControl x:Name="Items">
                         <ItemsControl.ItemTemplate>
@@ -31,7 +31,7 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <Border Background="{StaticResource AccentBrush}" CornerRadius="11" MinWidth="26" Height="22"
+                                        <Border Background="{DynamicResource AccentBrush}" CornerRadius="11" MinWidth="26" Height="22"
                                                 Padding="5,0" VerticalAlignment="Top">
                                             <TextBlock Text="{Binding Label}" Foreground="White" FontWeight="Bold" FontSize="11"
                                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -45,7 +45,7 @@
                                 </Border>
                                 <DataTemplate.Triggers>
                                     <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="Row" Property="Background" Value="{StaticResource HoverBrush}" />
+                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource HoverBrush}" />
                                         <Setter TargetName="RemoveButton" Property="Visibility" Value="Visible" />
                                     </Trigger>
                                 </DataTemplate.Triggers>

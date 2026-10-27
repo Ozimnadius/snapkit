@@ -5,6 +5,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using Snapkit.App.Rendering;
+using Snapkit.App.Shell;
 using Snapkit.Core.Model;
 
 namespace Snapkit.App.Editor;
@@ -138,9 +139,11 @@ public partial class EditorToolbar : UserControl
             var header = new StackPanel { Orientation = Orientation.Horizontal };
             var icon = new ContentControl
             {
-                Content = Icon(tool), Width = 22, Margin = new Thickness(0, 0, 10, 0), Foreground = Brushes.White,
+                Content = Icon(tool), Width = 22, Margin = new Thickness(0, 0, 10, 0),
                 FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 14,
             };
+            // Цвет текста темы: в светлой теме значок тёмный
+            icon.SetResourceReference(Control.ForegroundProperty, ThemeManager.TextKey);
             header.Children.Add(icon);
             header.Children.Add(new TextBlock { Text = $"{Names[tool]} ({Keys[tool]})", VerticalAlignment = VerticalAlignment.Center });
             var item = new MenuItem { Header = header, IsChecked = tool == current };
@@ -181,11 +184,13 @@ public partial class EditorToolbar : UserControl
         foreach (var thickness in Palette.Thicknesses)
         {
             var header = new StackPanel { Orientation = Orientation.Horizontal };
-            header.Children.Add(new Rectangle
+            var sample = new Rectangle
             {
-                Width = 28, Height = thickness, Fill = Brushes.White, RadiusX = thickness / 2, RadiusY = thickness / 2,
+                Width = 28, Height = thickness, RadiusX = thickness / 2, RadiusY = thickness / 2,
                 VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0),
-            });
+            };
+            sample.SetResourceReference(Shape.FillProperty, ThemeManager.TextKey);
+            header.Children.Add(sample);
             header.Children.Add(new TextBlock { Text = $"{thickness:0} px", VerticalAlignment = VerticalAlignment.Center });
             var item = new MenuItem { Header = header };
             item.Click += (_, _) => ThicknessSelected?.Invoke(this, thickness);
@@ -200,11 +205,13 @@ public partial class EditorToolbar : UserControl
                  })
         {
             var header = new StackPanel { Orientation = Orientation.Horizontal };
-            header.Children.Add(new Line
+            var line = new Line
             {
-                X1 = 0, X2 = 28, Stroke = Brushes.White, StrokeThickness = 3, StrokeDashArray = dash,
+                X1 = 0, X2 = 28, StrokeThickness = 3, StrokeDashArray = dash,
                 StrokeDashCap = PenLineCap.Round, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0),
-            });
+            };
+            line.SetResourceReference(Shape.StrokeProperty, ThemeManager.TextKey);
+            header.Children.Add(line);
             header.Children.Add(new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center });
             var item = new MenuItem { Header = header, IsChecked = style == _lineStyle };
             item.Click += (_, _) => LineStyleSelected?.Invoke(this, style);

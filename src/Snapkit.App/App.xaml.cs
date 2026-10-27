@@ -20,6 +20,7 @@ using Snapkit.Core;
 using Snapkit.Core.Input;
 using Snapkit.Core.Session;
 using Snapkit.Core.Settings;
+using Snapkit.Core.Theming;
 using Forms = System.Windows.Forms;
 
 namespace Snapkit.App;
@@ -96,6 +97,8 @@ public partial class App : Application
             settingsWereReset = true;
         }
         Toasts.Enabled = _settings.ShowNotifications;
+        ApplyTheme();
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         ApplyAutoStart();
 
         _session = new SessionService(new SessionStore(Path.Combine(DataDirectory, "session")));
@@ -212,6 +215,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         Log.Info(_clearOnExit ? "Выход из Snapkit с очисткой ленты" : "Выход из Snapkit");
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
         _hook?.Dispose();
         _tray?.Dispose();
         _clipboard?.Dispose();
@@ -748,6 +752,16 @@ public partial class App : Application
             Log.Error("сохранение настроек", ex);
             Toasts.Error("Не удалось сохранить настройки");
         }
+    }
+
+    /// <summary>Тема из настроек; «Как в Windows» — по теме приложений Windows.</summary>
+    private void ApplyTheme() => ThemeManager.Apply(ThemePalette.Resolve(_settings.Theme, ThemeManager.WindowsAppsLight()));
+
+    // Пользователь сменил тему Windows — при «Как в Windows» перекрашиваемся сразу
+    private void OnUserPreferenceChanged(object sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
+    {
+        if (e.Category == Microsoft.Win32.UserPreferenceCategory.General && _settings.Theme == AppTheme.System)
+            Dispatcher.BeginInvoke(ApplyTheme);
     }
 
     private void ApplyAutoStart()
