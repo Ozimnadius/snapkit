@@ -103,4 +103,46 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(saved, loaded);
         Assert.False(wasReset);
     }
+
+    [Fact]
+    public void Load_Stage3Settings_KeepsHotkeysAndDefaults()
+    {
+        // Файл этапа 3: клавиши пользователя переносятся, новые поля — по умолчанию
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(FilePath, """{ "captureHotkeys": "PrintScreen, Ctrl+F12", "showStrip": true }""");
+        var (settings, wasReset) = new SettingsStore(FilePath).Load();
+        Assert.False(wasReset);
+        Assert.Equal("PrintScreen, Ctrl+F12", settings.CaptureHotkeys);
+        Assert.Equal("", settings.FullScreenHotkeys);
+        Assert.True(settings.CaptureHotkeysEnabled);
+        Assert.True(settings.AutoUpdate);
+        Assert.Equal(AppTheme.Dark, settings.Theme);
+        Assert.Equal(90, settings.JpegQuality);
+        Assert.Equal(SaveFormat.Png, settings.SaveFormat);
+    }
+
+    [Fact]
+    public void SaveThenLoad_NewFields_RoundTrip()
+    {
+        var original = new AppSettings() with
+        {
+            FullScreenHotkeys = "Ctrl+PrintScreen",
+            CaptureHotkeysEnabled = false,
+            FullScreenHotkeysEnabled = true,
+            ProposeLastRegion = true,
+            LastRegion = new RectI(10, 20, 300, 200),
+            ShowCursor = true,
+            AutoUpdate = false,
+            SnoozedUpdateVersion = "0.3.2",
+            SnoozedUpdateUntil = new DateTimeOffset(2026, 10, 28, 9, 0, 0, TimeSpan.FromHours(3)),
+            AutoSave = true,
+            SaveFormat = SaveFormat.Jpeg,
+            JpegQuality = 75,
+            Theme = AppTheme.System,
+        };
+        var store = new SettingsStore(FilePath);
+        Directory.CreateDirectory(_dir);
+        store.Save(original);
+        Assert.Equal(original, store.Load().Settings);
+    }
 }

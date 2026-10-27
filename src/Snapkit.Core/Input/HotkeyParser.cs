@@ -23,16 +23,23 @@ public static class HotkeyParser
         return KeyOf(parts[^1]) is { } vk ? new Hotkey(mods, vk) : null;
     }
 
-    /// <summary>Список через запятую; непонятные сочетания пропускаются, пустой список — Print Screen.</summary>
-    public static IReadOnlyList<Hotkey> ParseList(string text)
+    /// <summary>Список через запятую; непонятные пропускаются. Пустой — Print Screen, если orPrintScreen, иначе пустой.</summary>
+    public static IReadOnlyList<Hotkey> ParseList(string text, bool orPrintScreen = true)
     {
         var hotkeys = text.Split([',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             .Select(Parse)
             .OfType<Hotkey>()
             .Distinct()
             .ToList();
-        return hotkeys.Count > 0 ? hotkeys : [Default];
+        return hotkeys.Count > 0 || !orPrintScreen ? hotkeys : [Default];
     }
+
+    /// <summary>Обратно в текст для файла: «Print Screen, Ctrl+F12» — разбирается снова тем же ParseList.</summary>
+    public static string FormatList(IEnumerable<Hotkey> hotkeys) => string.Join(", ", hotkeys.Select(Display));
+
+    /// <summary>Клавиша, которую понимает разбор: Print Screen, F1–F24, A–Z, 0–9.</summary>
+    public static bool IsSupportedKey(int vk)
+        => vk == Vk.Snapshot || vk is >= 0x70 and <= 0x87 || vk is >= 'A' and <= 'Z' || vk is >= '0' and <= '9';
 
     /// <summary>Как показывать пользователю: «Print Screen», «Ctrl+F12».</summary>
     public static string Display(Hotkey hotkey)

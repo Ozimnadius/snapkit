@@ -38,4 +38,18 @@ public class HotkeyParserTests
     [InlineData(HotkeyMods.Ctrl | HotkeyMods.Shift, 0x53, "Ctrl+Shift+S")]
     public void Display_IsHumanReadable(HotkeyMods mods, int vk, string expected)
         => Assert.Equal(expected, HotkeyParser.Display(new Hotkey(mods, vk)));
+
+    [Fact]
+    public void ParseList_EmptyWithoutDefault_IsEmpty()
+        => Assert.Empty(HotkeyParser.ParseList("", orPrintScreen: false));
+
+    [Fact]
+    public void FormatList_RoundTrips()
+    {
+        var text = HotkeyParser.FormatList(HotkeyParser.ParseList("PrintScreen, Ctrl+F12"));
+        Assert.Equal("Print Screen, Ctrl+F12", text);
+        Assert.Equal(
+            new[] { new Hotkey(HotkeyMods.None, Vk.Snapshot), new Hotkey(HotkeyMods.Ctrl, 0x7B) },
+            HotkeyParser.ParseList(text));
+    }
 }
