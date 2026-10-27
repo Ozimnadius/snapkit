@@ -70,6 +70,13 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += (_, args) => Log.Error("необработанное исключение", (Exception)args.ExceptionObject);
 
+        // Удаление из «Параметры → Приложения» или из настроек — раньше самоустановки и проверки второй копии
+        if (e.Args.Contains(Uninstaller.Argument))
+        {
+            RunUninstall();
+            return;
+        }
+
         if (TryInstallItself()) return;
 
         if (!SingleInstance.TryAcquire(
@@ -106,6 +113,7 @@ public partial class App : Application
         ApplyAccent();
         Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         ApplyAutoStart();
+        RegisterForUninstall();
 
         _session = new SessionService(new SessionStore(Path.Combine(DataDirectory, "session")));
         // Файлы прошлых перетаскиваний больше не нужны
@@ -781,6 +789,17 @@ public partial class App : Application
         }
         var window = new Settings.SettingsWindow(new Settings.SettingsViewModel(_settings, AppVersion));
         window.Saved += (_, next) => ApplySettings(next);
+        // Удаление идёт отдельным запуском с --uninstall: вопрос задаёт он, эту копию он закроет сам
+        window.UninstallRequested += (_, _) =>
+        {
+            if (Environment.ProcessPath is not { } exe) return;
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, Uninstaller.Argument) { UseShellExecute = false }); }
+            catch (Exception ex)
+            {
+                Log.Error("запуск удаления", ex);
+                Toasts.Error("Не удалось запустить удаление. Подробности — в журнале");
+            }
+        };
         // Пока поле ждёт сочетание, перехват отдаёт нажатия окну, а не снимку
         window.RecordingChanged += (_, recording) =>
         {
@@ -862,6 +881,48 @@ public partial class App : Application
     {
         if (e.Category == Microsoft.Win32.UserPreferenceCategory.General && _settings.Theme == AppTheme.System)
             Dispatcher.BeginInvoke(ApplyTheme);
+    }
+
+    /// <summary>Строка в «Параметры → Приложения» — только у установленной копии из релиза.</summary>
+    private static void RegisterForUninstall()
+    {
+        var exe = Environment.ProcessPath;
+        if (!SelfInstall.IsSingleFile || exe is null || !AutoStart.IsInstalledCopy(exe)) return;
+        try { Uninstaller.Register(exe, AppVersion); }
+        catch (Exception ex) { Log.Error("строка в списке программ", ex); }
+    }
+
+    /// <summary>
+    /// «Удалить Snapkit»: вопрос, закрыть работающую копию и удалить всё, кроме сохранённых снимков.
+    /// После удаления выходим сразу, мимо OnExit: обычный выход пишет журнал и вернул бы папку данных.
+    /// </summary>
+    private void RunUninstall()
+    {
+        var answer = MessageBox.Show(
+            "Удалить Snapkit?\nСнимки ленты и настройки тоже удалятся. Сохранённые файлы в папке сохранения останутся.",
+            "Snapkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (answer != MessageBoxResult.Yes)
+        {
+            Shutdown();
+            return;
+        }
+        try
+        {
+            SelfInstall.StopOtherCopies();
+            var saveFolder = CaptureFiles.SaveFolder(new SettingsStore(SettingsPath).Load().Settings.LastSaveFolder);
+            Uninstaller.Run(saveFolder);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("удаление Snapkit", ex);
+            MessageBox.Show("Не удалось удалить Snapkit полностью. Подробности — в журнале.", "Snapkit",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            Shutdown();
+            return;
+        }
+        MessageBox.Show("Snapkit удалён. Сохранённые снимки остались в папке сохранения.", "Snapkit",
+            MessageBoxButton.OK, MessageBoxImage.Information);
+        Environment.Exit(0);
     }
 
     private void ApplyAutoStart()

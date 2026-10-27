@@ -55,7 +55,7 @@ public static class SelfInstall
     }
 
     // Работающий Snapkit держит exe и не дал бы запуститься новой копии — просим его закрыться
-    private static void StopOtherCopies()
+    internal static void StopOtherCopies()
     {
         var others = Process.GetProcessesByName("Snapkit").Where(p => p.Id != Environment.ProcessId).ToList();
         if (others.Count == 0) return;
