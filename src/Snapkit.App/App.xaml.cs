@@ -791,7 +791,10 @@ public partial class App : Application
             _settingsWindow.Activate();
             return;
         }
-        var window = new Settings.SettingsWindow(new Settings.SettingsViewModel(_settings, AppVersion));
+        // Ответ на «Проверить обновления» показывает само окно — уведомления тут не нужны
+        var updates = new Settings.UpdateCheckModel(Updater.CurrentVersion, CanSelfUpdate, Updater.FetchLatestAsync,
+            latest => GetUpdater().InstallAsync(latest, notify: false), OpenReleasePage);
+        var window = new Settings.SettingsWindow(new Settings.SettingsViewModel(_settings, AppVersion) { Updates = updates });
         window.Saved += (_, model) => ApplySettings(model.Build(_settings));
         // Удаление идёт отдельным запуском с --uninstall: вопрос задаёт он, эту копию он закроет сам
         window.UninstallRequested += (_, _) =>
@@ -826,18 +829,33 @@ public partial class App : Application
     /// </summary>
     private void StartUpdateChecks()
     {
-        var exe = Environment.ProcessPath;
-        if (!_settings.AutoUpdate || _updateTimer is not null || !SelfInstall.IsSingleFile || exe is null || !AutoStart.IsInstalledCopy(exe))
+        if (!_settings.AutoUpdate || _updateTimer is not null || !CanSelfUpdate)
             return;
-        _updater ??= new Updater(() => _settings, SaveSettings);
+        var updater = GetUpdater();
         var timer = new DispatcherTimer { Interval = FirstUpdateCheck };
         timer.Tick += async (_, _) =>
         {
             timer.Interval = UpdateCheckInterval;
-            await _updater.CheckAsync();
+            await updater.CheckAsync();
         };
         _updateTimer = timer;
         timer.Start();
+    }
+
+    /// <summary>Эта копия ставит обновления сама: один exe из релиза в папке программы.</summary>
+    private static bool CanSelfUpdate
+        => SelfInstall.IsSingleFile && Environment.ProcessPath is { } exe && AutoStart.IsInstalledCopy(exe);
+
+    private Updater GetUpdater() => _updater ??= new Updater(() => _settings, SaveSettings);
+
+    private static void OpenReleasePage()
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Updater.ReleasePageUrl) { UseShellExecute = true }); }
+        catch (Exception ex)
+        {
+            Log.Error("открытие страницы релиза", ex);
+            Toasts.Error("Не удалось открыть страницу релиза. Подробности — в журнале");
+        }
     }
 
     private void StopUpdateChecks()

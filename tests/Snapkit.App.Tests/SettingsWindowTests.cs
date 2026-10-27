@@ -38,6 +38,52 @@ public class SettingsWindowTests
     });
 
     [Fact]
+    public void CheckUpdates_ShowsAnswerAndUpdateButton() => UiApp.Run(() =>
+    {
+        var latest = new Snapkit.Core.Updates.ReleaseInfo(new Version(0, 5, 0), "https://example/Snapkit.exe", "00");
+        var updates = new UpdateCheckModel(new Version(0, 4, 0), true, () => Task.FromResult<Snapkit.Core.Updates.ReleaseInfo?>(latest),
+            _ => Task.FromResult(true), () => { });
+        var window = new SettingsWindow(new SettingsViewModel(new AppSettings(), "0.4.0") { Updates = updates });
+        Pump();
+        Assert.Equal(Visibility.Collapsed, window.UpdatePanel.Visibility);
+
+        window.CheckUpdatesButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        Pump();
+
+        Assert.Equal(Visibility.Visible, window.UpdatePanel.Visibility);
+        Assert.Equal("Вышла версия 0.5.0", window.UpdateStatusText.Text);
+        Assert.Equal("Обновить", window.UpdateActionButton.Content);
+        Assert.Equal(Visibility.Visible, window.UpdateActionButton.Visibility);
+        window.Close();
+    });
+
+    [Fact]
+    public void CheckUpdates_UpToDate_NoActionButton() => UiApp.Run(() =>
+    {
+        var latest = new Snapkit.Core.Updates.ReleaseInfo(new Version(0, 4, 0), "https://example/Snapkit.exe", "00");
+        var updates = new UpdateCheckModel(new Version(0, 4, 0), true, () => Task.FromResult<Snapkit.Core.Updates.ReleaseInfo?>(latest),
+            _ => Task.FromResult(true), () => { });
+        var window = new SettingsWindow(new SettingsViewModel(new AppSettings(), "0.4.0") { Updates = updates });
+        Pump();
+
+        window.CheckUpdatesButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        Pump();
+
+        Assert.Equal("У вас последняя версия", window.UpdateStatusText.Text);
+        Assert.Equal(Visibility.Collapsed, window.UpdateActionButton.Visibility);
+        window.Close();
+    });
+
+    [Fact]
+    public void NoUpdates_NoCheckLink() => UiApp.Run(() =>
+    {
+        var window = new SettingsWindow(new SettingsViewModel(new AppSettings(), "0.4.0"));
+        Pump();
+        Assert.Equal(Visibility.Collapsed, window.CheckUpdatesButton.Visibility);
+        window.Close();
+    });
+
+    [Fact]
     public void Record_Escape_KeepsField() => UiApp.Run(() =>
     {
         var window = new SettingsWindow(new SettingsViewModel(new AppSettings(), "0.3.1"));

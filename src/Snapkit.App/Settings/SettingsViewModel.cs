@@ -50,6 +50,9 @@ public sealed class SettingsViewModel : ObservableObject
 
     public string Version { get; }
 
+    /// <summary>«Проверить обновления»; null — ссылки нет.</summary>
+    public UpdateCheckModel? Updates { get; init; }
+
     // «Общие»
     public bool LaunchAtStartup { get; set; }
     public bool ShowNotifications { get; set; }

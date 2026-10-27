@@ -174,8 +174,28 @@
                     <CheckBox Style="{StaticResource SettingsCheck}" IsChecked="{Binding AutoUpdate}" Content="Обновлять автоматически" />
                     <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
                         <TextBlock x:Name="VersionText" FontSize="12" Foreground="{DynamicResource MutedTextBrush}" />
+                        <TextBlock x:Name="CheckUpdatesSeparator" Text=" · " FontSize="12" Foreground="{DynamicResource MutedTextBrush}" />
+                        <Button x:Name="CheckUpdatesButton" Style="{StaticResource LinkButton}" FontSize="12" Content="Проверить обновления"
+                                IsEnabled="{Binding Updates.IsIdle, FallbackValue=False}" Click="CheckUpdates_Click" />
                         <TextBlock Text=" · " FontSize="12" Foreground="{DynamicResource MutedTextBrush}" />
                         <Button Style="{StaticResource LinkButton}" FontSize="12" Content="Удалить Snapkit с компьютера…" Click="Uninstall_Click" />
+                    </StackPanel>
+                    <!-- Ответ проверки: виден после щелчка по «Проверить обновления» -->
+                    <StackPanel x:Name="UpdatePanel" Orientation="Horizontal" Margin="0,10,0,0" MinHeight="26" Visibility="Collapsed">
+                        <TextBlock x:Name="UpdateStatusText" Text="{Binding Updates.Status}" FontSize="12"
+                                   Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center" />
+                        <Button x:Name="UpdateActionButton" Content="{Binding Updates.ActionText}" Margin="12,0,0,0" Height="26"
+                                FontSize="12" Padding="12,0" IsEnabled="{Binding Updates.IsIdle}" Click="UpdateAction_Click">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource AccentButton}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Updates.ActionText}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                     </StackPanel>
                 </StackPanel>
 

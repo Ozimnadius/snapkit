@@ -24,6 +24,7 @@ public sealed partial class SettingsWindow : Window
         _model = model;
         DataContext = model;
         VersionText.Text = $"Версия {model.Version}";
+        if (model.Updates is null) CheckUpdatesButton.Visibility = CheckUpdatesSeparator.Visibility = Visibility.Collapsed;
         foreach (var box in new[] { Region1Box, Region2Box, Full1Box, Full2Box }) box.RecordRequested += (_, _) => StartRecording(box);
 
         (model.SaveFormat == SaveFormat.Jpeg ? JpegButton : PngButton).IsChecked = true;
@@ -146,6 +147,18 @@ public sealed partial class SettingsWindow : Window
             InitialDirectory = Directory.Exists(_model.SaveFolder) ? _model.SaveFolder : "",
         };
         if (dialog.ShowDialog(this) == true) _model.SaveFolder = dialog.FolderName;
+    }
+
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        if (_model.Updates is not { } updates) return;
+        UpdatePanel.Visibility = Visibility.Visible;
+        await updates.CheckAsync();
+    }
+
+    private async void UpdateAction_Click(object sender, RoutedEventArgs e)
+    {
+        if (_model.Updates is { } updates) await updates.RunActionAsync();
     }
 
     private void Uninstall_Click(object sender, RoutedEventArgs e) => UninstallRequested?.Invoke(this, EventArgs.Empty);
