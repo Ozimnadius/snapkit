@@ -1,0 +1,77 @@
+<h2>Светлая тема — так?</h2>
+<p class="subtitle">Слева лента как сейчас (тёмная), справа — она же в светлой теме, плюс уведомление и капсула. Затемнение экрана при выделении области остаётся тёмным в обеих темах.</p>
+
+<style>
+  .lt-row { display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; }
+  .lt-col { display:flex; flex-direction:column; gap:14px; }
+  .lt-cap { font:12px "Segoe UI", sans-serif; color:#9AA0A6; }
+  .strip { width:210px; border-radius:10px; padding:6px 10px 10px; font:13px "Segoe UI", sans-serif; }
+  .strip .hd { display:flex; align-items:center; gap:6px; height:34px; }
+  .strip .logo { width:18px; height:18px; border-radius:4px; background:#2F7BF5; }
+  .strip .cnt { border-radius:9px; padding:0 6px; font-size:11px; font-weight:600; min-width:20px; text-align:center; }
+  .strip .ic { margin-left:auto; letter-spacing:6px; font-size:12px; }
+  .strip .stack { border-radius:10px; padding:5px; margin-top:6px; }
+  .strip .card { height:26px; border-radius:6px; margin-bottom:3px; display:flex; align-items:center; gap:6px; padding-left:4px; font-size:11px; }
+  .strip .card.last { height:70px; align-items:flex-start; padding-top:4px; }
+  .strip .badge { width:18px; height:18px; border-radius:50%; background:#2F7BF5; color:#fff; font-weight:bold; font-size:10px; display:inline-flex; align-items:center; justify-content:center; }
+  .strip .btn2 { margin-top:10px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .strip .btn1 { margin-top:8px; height:38px; border-radius:8px; background:#2F7BF5; color:#fff; font-weight:600; display:flex; align-items:center; justify-content:center; }
+
+  .dark { background:#1E2128; border:1px solid #3A3F4A; color:#E8EAED; }
+  .dark .cnt { background:#ffffff33; } .dark .ic { color:#9AA0A6; }
+  .dark .stack { background:#272B33; border:1px solid #3A3F4A; }
+  .dark .card { background:linear-gradient(90deg,#3b4250,#596273); color:#fff; }
+  .dark .btn2 { background:#272B33; border:1px solid #3A3F4A; }
+
+  .light { background:#FFFFFF; border:1px solid #D5DAE1; color:#1F2328; box-shadow:0 6px 20px #0000001f; }
+  .light .cnt { background:#E8EBF0; } .light .ic { color:#6B7280; }
+  .light .stack { background:#F3F5F8; border:1px solid #DDE2E9; }
+  .light .card { background:linear-gradient(90deg,#cdd6e2,#e8edf3); color:#1F2328; }
+  .light .btn2 { background:#F3F5F8; border:1px solid #D5DAE1; }
+
+  .toast { width:260px; border-radius:10px; padding:10px 14px; font:13px "Segoe UI", sans-serif; display:flex; justify-content:space-between; }
+  .toast.light { background:#fff; border:1px solid #D5DAE1; color:#1F2328; box-shadow:0 6px 20px #0000001f; }
+  .toast.dark { background:#1E2128; border:1px solid #3A3F4A; color:#E8EAED; }
+  .toast b { color:#2F7BF5; font-weight:600; }
+  .caps { display:flex; align-items:center; gap:8px; border-radius:20px; padding:5px 10px; font:13px "Segoe UI", sans-serif; width:fit-content; }
+  .caps .cam { width:26px; height:26px; border-radius:50%; background:#2F7BF5; }
+</style>
+
+<div class="lt-row">
+  <div class="lt-col">
+    <div class="lt-cap">Тёмная (как сейчас)</div>
+    <div class="strip dark">
+      <div class="hd"><span class="logo"></span><b>Snapkit</b><span class="cnt">3</span><span class="ic">🗑 ⋯ — ✕</span></div>
+      <div class="stack">
+        <div class="card"><span class="badge">A</span>💬 0</div>
+        <div class="card"><span class="badge">B</span>💬 2</div>
+        <div class="card last"><span class="badge">C</span>💬 1</div>
+      </div>
+      <div class="btn2">⧉ Копировать всё</div>
+      <div class="btn1">📷 Новый снимок</div>
+    </div>
+    <div class="toast dark">Скопировано: 3 снимка <b>Вернуть</b></div>
+    <div class="caps dark" style="border:1px solid #3A3F4A"><span class="cam"></span><b>Snapkit</b><span class="cnt" style="background:#ffffff33;border-radius:9px;padding:0 6px;font-size:11px">3</span>˄</div>
+  </div>
+
+  <div class="lt-col">
+    <div class="lt-cap">Светлая</div>
+    <div class="strip light">
+      <div class="hd"><span class="logo"></span><b>Snapkit</b><span class="cnt">3</span><span class="ic">🗑 ⋯ — ✕</span></div>
+      <div class="stack">
+        <div class="card"><span class="badge">A</span>💬 0</div>
+        <div class="card"><span class="badge">B</span>💬 2</div>
+        <div class="card last"><span class="badge">C</span>💬 1</div>
+      </div>
+      <div class="btn2">⧉ Копировать всё</div>
+      <div class="btn1">📷 Новый снимок</div>
+    </div>
+    <div class="toast light">Скопировано: 3 снимка <b>Вернуть</b></div>
+    <div class="caps light"><span class="cam"></span><b>Snapkit</b><span class="cnt" style="background:#E8EBF0;border-radius:9px;padding:0 6px;font-size:11px">3</span>˄</div>
+  </div>
+
+  <div class="lt-col" style="max-width:300px">
+    <div class="lt-cap">Что светлеет</div>
+    <p class="subtitle" style="margin:0">Лента, капсула, уведомления, окно настроек, панель комментариев и панели инструментов редактора, меню. Снимок и разметка на нём не меняются. Цвет программы (синий здесь) — свой в обеих темах.</p>
+  </div>
+</div>

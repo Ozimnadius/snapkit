@@ -1,0 +1,102 @@
+<h2>Окно настроек: четыре вкладки</h2>
+<p class="subtitle">Тёмная тема, как лента. Внизу каждой вкладки «Отмена» и «Сохранить». Пункты со звёздочкой обсудим отдельно.</p>
+
+<style>
+  .sk-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px; }
+  .sk-win { background:#1E2128; border:1px solid #3A3F4A; border-radius:12px; padding:16px 18px; color:#E8EAED; font:13px "Segoe UI", sans-serif; }
+  .sk-title { font-size:18px; font-weight:600; margin-bottom:12px; display:flex; justify-content:space-between; }
+  .sk-tabs { display:flex; gap:6px; margin-bottom:14px; }
+  .sk-tab { padding:6px 12px; border-radius:7px; background:#272B33; color:#C9CDD3; }
+  .sk-tab.on { background:#24406E; color:#fff; }
+  .sk-row { display:flex; align-items:center; gap:9px; margin:9px 0; }
+  .sk-box { width:15px; height:15px; border-radius:3px; border:1.5px solid #6B7280; display:inline-flex; align-items:center; justify-content:center; font-size:11px; }
+  .sk-box.on { background:#2F7BF5; border-color:#2F7BF5; color:#fff; }
+  .sk-star { color:#FBBF5A; }
+  .sk-field { background:#272B33; border:1px solid #3A3F4A; border-radius:8px; padding:9px 12px; display:flex; align-items:center; gap:6px; margin:6px 0 4px; }
+  .sk-key { border:1px solid #5B616D; border-radius:5px; padding:1px 7px; font-size:12px; }
+  .sk-hint { margin-left:auto; color:#9AA0A6; font-size:12px; }
+  .sk-btn2 { display:inline-block; border:1px solid #3A3F4A; background:#272B33; border-radius:7px; padding:6px 12px; margin-top:6px; }
+  .sk-seg { display:inline-flex; background:#272B33; border:1px solid #3A3F4A; border-radius:8px; padding:3px; }
+  .sk-seg span { padding:4px 18px; border-radius:6px; color:#C9CDD3; }
+  .sk-seg span.on { background:#24406E; color:#fff; }
+  .sk-label { color:#C9CDD3; margin:12px 0 4px; }
+  .sk-slider { height:4px; background:#3A3F4A; border-radius:2px; position:relative; width:180px; display:inline-block; vertical-align:middle; }
+  .sk-slider i { position:absolute; left:0; top:0; height:4px; width:85%; background:#2F7BF5; border-radius:2px; }
+  .sk-slider b { position:absolute; left:85%; top:-6px; width:14px; height:14px; margin-left:-7px; background:#fff; border-radius:50%; }
+  .sk-foot { display:flex; justify-content:flex-end; gap:14px; align-items:center; margin-top:16px; }
+  .sk-save { background:#2F7BF5; color:#fff; border-radius:8px; padding:7px 16px; font-weight:600; }
+  .sk-link { color:#9AA0A6; margin-top:12px; font-size:12px; }
+  .sk-themes { display:flex; gap:10px; }
+  .sk-theme { border:1px solid #3A3F4A; border-radius:9px; padding:6px; width:120px; text-align:center; }
+  .sk-theme.on { border:2px solid #2F7BF5; }
+  .sk-theme .pv { height:54px; border-radius:6px; display:flex; justify-content:flex-end; align-items:center; padding-right:8px; }
+  .sk-theme .pv div { width:30px; height:40px; border-radius:4px; }
+  .sk-dots { display:flex; gap:8px; flex-wrap:wrap; }
+  .sk-dots span { width:22px; height:22px; border-radius:50%; display:inline-block; }
+  .sk-dots span.on { outline:2px solid #fff; outline-offset:2px; }
+  .sk-sample { margin-top:12px; background:#272B33; border:1px solid #3A3F4A; border-radius:8px; padding:10px 12px; display:flex; align-items:center; gap:10px; color:#9AA0A6; }
+</style>
+
+<div class="sk-grid">
+  <!-- Общие -->
+  <div class="sk-win">
+    <div class="sk-title">Настройки <span>✕</span></div>
+    <div class="sk-tabs"><span class="sk-tab on">Общие</span><span class="sk-tab">Клавиши</span><span class="sk-tab">Сохранение</span><span class="sk-tab">Вид</span></div>
+    <div class="sk-row"><span class="sk-box on">✓</span>Открывать при включении компьютера</div>
+    <div class="sk-row"><span class="sk-box on">✓</span>Показывать уведомления</div>
+    <div class="sk-row"><span class="sk-box on">✓</span>Показывать ленту</div>
+    <div class="sk-row"><span class="sk-box"></span>Очищать ленту после вставки</div>
+    <div class="sk-row"><span class="sk-box"></span>Предлагать ту же область, что в прошлый раз <span class="sk-star">*</span></div>
+    <div class="sk-row"><span class="sk-box"></span>Показывать курсор мыши на снимке</div>
+    <div class="sk-row"><span class="sk-box on">✓</span>Обновлять автоматически <span class="sk-star">*</span></div>
+    <div class="sk-link">Версия 0.3.1 · Удалить Snapkit с компьютера… <span class="sk-star">*</span></div>
+    <div class="sk-foot"><span>Отмена</span><span class="sk-save">Сохранить</span></div>
+  </div>
+
+  <!-- Клавиши -->
+  <div class="sk-win">
+    <div class="sk-title">Настройки <span>✕</span></div>
+    <div class="sk-tabs"><span class="sk-tab">Общие</span><span class="sk-tab on">Клавиши</span><span class="sk-tab">Сохранение</span><span class="sk-tab">Вид</span></div>
+    <div class="sk-row"><span class="sk-box on">✓</span>Снимок области</div>
+    <div class="sk-field">⌨ <span class="sk-key">Ctrl</span><span class="sk-key">F12</span> <span class="sk-hint">Нажми, чтобы изменить</span></div>
+    <div class="sk-field">⌨ <span class="sk-key">Print Screen</span> <span class="sk-hint">второе сочетание <span class="sk-star">*</span></span></div>
+    <div class="sk-row" style="margin-top:14px"><span class="sk-box"></span>Снимок всего экрана <span class="sk-star">*</span></div>
+    <div class="sk-field" style="color:#9AA0A6">⌨ Не назначено <span class="sk-hint">Нажми, чтобы изменить</span></div>
+    <span class="sk-btn2">Предложить: Ctrl+Print Screen</span>
+    <div class="sk-foot"><span>Отмена</span><span class="sk-save">Сохранить</span></div>
+  </div>
+
+  <!-- Сохранение -->
+  <div class="sk-win">
+    <div class="sk-title">Настройки <span>✕</span></div>
+    <div class="sk-tabs"><span class="sk-tab">Общие</span><span class="sk-tab">Клавиши</span><span class="sk-tab on">Сохранение</span><span class="sk-tab">Вид</span></div>
+    <div class="sk-row"><span class="sk-box"></span>Автоматически сохранять готовые снимки <span class="sk-star">*</span></div>
+    <div class="sk-label">Формат</div>
+    <span class="sk-seg"><span class="on">PNG</span><span>JPEG</span></span>
+    <div class="sk-label">Качество JPEG · 90 %</div>
+    <span class="sk-slider"><i></i><b></b></span>
+    <div class="sk-label">Папка сохранения</div>
+    <div class="sk-field">C:\Users\mikha\Pictures\Snapkit <span class="sk-hint">📁</span></div>
+    <div class="sk-foot"><span>Отмена</span><span class="sk-save">Сохранить</span></div>
+  </div>
+
+  <!-- Вид -->
+  <div class="sk-win">
+    <div class="sk-title">Настройки <span>✕</span></div>
+    <div class="sk-tabs"><span class="sk-tab">Общие</span><span class="sk-tab">Клавиши</span><span class="sk-tab">Сохранение</span><span class="sk-tab on">Вид</span></div>
+    <div class="sk-label" style="margin-top:0">Тема</div>
+    <div class="sk-themes">
+      <div class="sk-theme on"><div class="pv" style="background:#2A2E37"><div style="background:#1E2128;border:1px solid #444"></div></div>Тёмная</div>
+      <div class="sk-theme"><div class="pv" style="background:#E9ECF1"><div style="background:#fff;border:1px solid #cfd4dc"></div></div>Светлая</div>
+    </div>
+    <div class="sk-label">Цвет программы — кнопки, рамка выделения, кружки заметок</div>
+    <div class="sk-dots">
+      <span class="on" style="background:#2F7BF5"></span><span style="background:#22C55E"></span><span style="background:#A855F7"></span><span style="background:#F97316"></span><span style="background:#EC4899"></span><span style="background:#14B8A6"></span>
+      <span style="background:linear-gradient(135deg,#6366F1,#3B82F6)"></span><span style="background:linear-gradient(135deg,#F97316,#EF4444)"></span><span style="background:linear-gradient(135deg,#10B981,#14B8A6)"></span><span style="background:linear-gradient(135deg,#F59E0B,#F472B6)"></span><span style="background:linear-gradient(135deg,#EC4899,#8B5CF6)"></span><span style="background:linear-gradient(135deg,#06B6D4,#3B82F6)"></span>
+    </div>
+    <div class="sk-sample"><span style="width:46px;height:24px;border:2px solid #2F7BF5;border-radius:3px"></span><span style="width:20px;height:20px;border-radius:50%;background:#2F7BF5;color:#fff;font-weight:bold;font-size:11px;display:inline-flex;align-items:center;justify-content:center">A1</span><span class="sk-save" style="padding:4px 10px">Готово</span>так будет выглядеть</div>
+    <div class="sk-foot"><span>Отмена</span><span class="sk-save">Сохранить</span></div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Окно открывается из меню значка у часов и из «…» на ленте: «Настройки…».</p>
