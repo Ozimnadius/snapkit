@@ -15,6 +15,9 @@ public static class SelfInstall
     /// <summary>Аргумент, с которым установщик запускает установленную копию.</summary>
     public const string InstalledArgument = "--installed";
 
+    /// <summary>Аргумент, с которым запускается установленная копия, если она заменила прежнюю (обновление).</summary>
+    public const string UpdatedArgument = "--updated";
+
     private const string ExeName = "Snapkit.exe";
     private static readonly TimeSpan ExitWait = TimeSpan.FromSeconds(5);
 
@@ -29,6 +32,8 @@ public static class SelfInstall
 
     public static bool IsJustInstalled(IEnumerable<string> args) => args.Contains(InstalledArgument);
 
+    public static bool IsJustUpdated(IEnumerable<string> args) => args.Contains(UpdatedArgument);
+
     /// <summary>Программа собрана одним файлом: у сборки нет своего пути на диске.</summary>
 #pragma warning disable IL3000 // пустой Location — это и есть признак однофайловой сборки
     public static bool IsSingleFile => string.IsNullOrEmpty(typeof(SelfInstall).Assembly.Location);
@@ -39,10 +44,14 @@ public static class SelfInstall
     {
         Directory.CreateDirectory(installDirectory);
         var target = Path.Combine(installDirectory, ExeName);
+        var updating = File.Exists(target);
         StopOtherCopies();
         CopyWithRetries(exePath, target);
         CreateStartMenuShortcut(target, installDirectory);
-        Process.Start(new ProcessStartInfo(target, InstalledArgument) { WorkingDirectory = installDirectory, UseShellExecute = false });
+        Process.Start(new ProcessStartInfo(target, updating ? UpdatedArgument : InstalledArgument)
+        {
+            WorkingDirectory = installDirectory, UseShellExecute = false,
+        });
     }
 
     // Работающий Snapkit держит exe и не дал бы запуститься новой копии — просим его закрыться

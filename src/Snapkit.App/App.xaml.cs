@@ -48,6 +48,10 @@ public partial class App : Application
     private StripView _view = StripView.Hidden;
     private TrayIcon? _tray;
     private Settings.SettingsWindow? _settingsWindow;
+    private Updater? _updater;
+    private DispatcherTimer? _updateTimer;
+    private static readonly TimeSpan FirstUpdateCheck = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(24);
     private CaptureController _capture = null!;
     private ClipboardService? _clipboard;
     private PackagePublisher _publisher = null!;
@@ -177,7 +181,9 @@ public partial class App : Application
 
         if (settingsWereReset) Toasts.Show("Файл настроек не читался, настройки созданы заново");
         // После установки новой версии лента тоже читается с диска, но это не сбой
-        if (SelfInstall.IsJustInstalled(e.Args)) Toasts.Show("Snapkit установлен: ярлык в «Пуске», запуск вместе с Windows");
+        StartUpdateChecks();
+        if (SelfInstall.IsJustUpdated(e.Args)) Toasts.Show($"Snapkit обновлён до версии {AppVersion}");
+        else if (SelfInstall.IsJustInstalled(e.Args)) Toasts.Show("Snapkit установлен: ярлык в «Пуске», запуск вместе с Windows");
         else if (restored > 0) Toasts.Show("Снимки восстановлены после сбоя");
     }
 
@@ -791,6 +797,32 @@ public partial class App : Application
         window.Activate();
     }
 
+    /// <summary>
+    /// Автообновление: через 10 с после запуска и раз в сутки. Только у установленной копии из релиза
+    /// (один exe) — сборки build.ps1 не обновляются.
+    /// </summary>
+    private void StartUpdateChecks()
+    {
+        var exe = Environment.ProcessPath;
+        if (!_settings.AutoUpdate || _updateTimer is not null || !SelfInstall.IsSingleFile || exe is null || !AutoStart.IsInstalledCopy(exe))
+            return;
+        _updater ??= new Updater(() => _settings, SaveSettings);
+        var timer = new DispatcherTimer { Interval = FirstUpdateCheck };
+        timer.Tick += async (_, _) =>
+        {
+            timer.Interval = UpdateCheckInterval;
+            await _updater.CheckAsync();
+        };
+        _updateTimer = timer;
+        timer.Start();
+    }
+
+    private void StopUpdateChecks()
+    {
+        _updateTimer?.Stop();
+        _updateTimer = null;
+    }
+
     /// <summary>«Сохранить» в окне настроек: записать файл и раздать новые значения.</summary>
     private void ApplySettings(AppSettings next)
     {
@@ -802,6 +834,11 @@ public partial class App : Application
         if (_router is not null) _router.Hotkeys = HotkeyRules.BuildMap(next);
         _stripModel.EmptyHint = EmptyHintFor(next);
         if (previous.Theme != next.Theme) ApplyTheme();
+        if (previous.AutoUpdate != next.AutoUpdate)
+        {
+            if (next.AutoUpdate) StartUpdateChecks();
+            else StopUpdateChecks();
+        }
         if (previous.AccentColor != next.AccentColor)
         {
             ApplyAccent();
