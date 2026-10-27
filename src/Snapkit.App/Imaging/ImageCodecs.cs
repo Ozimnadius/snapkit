@@ -18,6 +18,16 @@ public static class ImageCodecs
         return stream.ToArray();
     }
 
+    /// <summary>JPEG с качеством 1–100 (вне пределов — обрезается). Прозрачности в JPEG нет — картинка без альфы.</summary>
+    public static byte[] EncodeJpeg(BitmapSource image, int quality)
+    {
+        var encoder = new JpegBitmapEncoder { QualityLevel = Math.Clamp(quality, 1, 100) };
+        encoder.Frames.Add(BitmapFrame.Create(new FormatConvertedBitmap(image, PixelFormats.Bgr24, null, 0)));
+        using var stream = new MemoryStream();
+        encoder.Save(stream);
+        return stream.ToArray();
+    }
+
     /// <summary>Картинка всегда приводится к Bgra32 и 96 DPI, чтобы 1 пиксель = 1 единица WPF.</summary>
     public static BitmapSource DecodePng(byte[] png)
     {

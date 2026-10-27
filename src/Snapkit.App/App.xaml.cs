@@ -148,6 +148,7 @@ public partial class App : Application
         {
             RunClipboard(() => _publisher.PublishCaptureAsync(id));
             Toasts.Show(CaptureFeedback.Copied);
+            if (_settings.AutoSave) AutoSave(id);
         };
         _stripModel.ShowStripSetting = _settings.ShowStrip;
         WireStrip();
@@ -350,7 +351,9 @@ public partial class App : Application
     /// <summary>Папка для окон сохранения: последняя выбранная, иначе «Изображения\Snapkit».</summary>
     private string SaveFolder()
     {
-        var folder = _settings.LastSaveFolder is { Length: > 0 } last && Directory.Exists(last) ? last : CaptureFiles.DefaultSaveFolder;
+        var configured = CaptureFiles.SaveFolder(_settings.LastSaveFolder);
+        // Папку из настроек удалили — окна сохранения начинают с обычной
+        var folder = configured == CaptureFiles.DefaultSaveFolder || Directory.Exists(configured) ? configured : CaptureFiles.DefaultSaveFolder;
         Directory.CreateDirectory(folder);
         return folder;
     }
@@ -365,13 +368,14 @@ public partial class App : Application
             var dialog = new Microsoft.Win32.SaveFileDialog
             {
                 Title = "Сохранить снимок",
-                Filter = "PNG|*.png",
-                FileName = PackageExport.TimestampName(DateTime.Now) + ".png",
+                Filter = _settings.SaveFormat == SaveFormat.Jpeg ? "JPEG|*.jpg" : "PNG|*.png",
+                FileName = PackageExport.TimestampName(DateTime.Now) + PackageExport.Extension(_settings.SaveFormat),
                 InitialDirectory = SaveFolder(),
             };
             if (dialog.ShowDialog(_strip) != true) return;
             char? letter = CaptureLetters.Assign(captures).TryGetValue(id, out var l) ? l : null;
-            CaptureFiles.SavePng(dialog.FileName, CaptureRenderer.Render(_session.GetSource(id), capture, letter ?? 'A'));
+            CaptureFiles.Save(dialog.FileName, CaptureRenderer.Render(_session.GetSource(id), capture, letter ?? 'A'),
+                _settings.SaveFormat, _settings.JpegQuality);
             SaveSettings(_settings with { LastSaveFolder = Path.GetDirectoryName(dialog.FileName) ?? "" });
             Toasts.Show("Снимок сохранён");
         }
@@ -379,6 +383,24 @@ public partial class App : Application
         {
             Log.Error("сохранение снимка", ex);
             Toasts.Error("Не удалось сохранить файл. Подробности — в журнале");
+        }
+    }
+
+    /// <summary>Автосохранение после «Готово»: файл по времени снимка в папке сохранения; правка перезаписывает его.</summary>
+    private void AutoSave(Guid id)
+    {
+        var captures = _session.Model.Captures;
+        if (captures.FirstOrDefault(c => c.Id == id) is not { } capture) return;
+        try
+        {
+            var path = Path.Combine(SaveFolder(), AutoSaveNames.For(capture, captures, _settings.SaveFormat));
+            var rendered = CaptureRenderer.Render(_session.GetSource(id), capture, CaptureLetters.Assign(captures)[id]);
+            CaptureFiles.Save(path, rendered, _settings.SaveFormat, _settings.JpegQuality);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("автосохранение снимка", ex);
+            Toasts.Error("Не удалось сохранить снимок в папку. Подробности — в журнале");
         }
     }
 
@@ -398,7 +420,7 @@ public partial class App : Application
             var items = package
                 .Select(p => (p, CaptureRenderer.Render(_session.GetSource(p.Capture.Id), p.Capture, p.Letter)))
                 .ToList();
-            var folder = CaptureFiles.SavePackage(dialog.FolderName, DateTime.Now, items);
+            var folder = CaptureFiles.SavePackage(dialog.FolderName, DateTime.Now, items, _settings.SaveFormat, _settings.JpegQuality);
             SaveSettings(_settings with { LastSaveFolder = dialog.FolderName });
             Toasts.Show("Снимки сохранены", "Открыть папку", () => System.Diagnostics.Process.Start("explorer.exe", $"\"{folder}\""));
         }

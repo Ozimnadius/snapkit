@@ -1,3 +1,4 @@
+using Snapkit.Core.Settings;
 using Snapkit.Core.Model;
 using static Snapkit.Core.Tests.TestData;
 
@@ -34,4 +35,14 @@ public class PackageExportTests
     [Fact]
     public void BuildPromptMarkdown_NoNotes_OnlyImages()
         => Assert.Equal("![Снимок A](A.png)", PackageExport.BuildPromptMarkdown([new('A', Cap())]));
+
+    [Fact]
+    public void ImageFileName_Jpeg_IsJpg() => Assert.Equal("B.jpg", PackageExport.ImageFileName('B', SaveFormat.Jpeg));
+
+    [Fact]
+    public void BuildPromptMarkdown_Jpeg_LinksJpg()
+    {
+        var item = new LetteredCapture('A', Cap(Shape(AnnotationKind.Rectangle, note: "кнопка")));
+        Assert.StartsWith("![Снимок A](A.jpg)", PackageExport.BuildPromptMarkdown([item], SaveFormat.Jpeg));
+    }
 }

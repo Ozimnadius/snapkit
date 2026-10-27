@@ -1,3 +1,4 @@
+using Snapkit.Core.Settings;
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -102,5 +103,47 @@ public sealed class CaptureFilesTests : IDisposable
             for (var x = 24; x < 96; x++) values.Add(row[x * 4 + 2]);
         }
         Assert.True(values.Max() - values.Min() < 60, $"разброс под размытием {values.Max() - values.Min()}");
+    });
+
+    // Картинка с узором: JPEG хуже сжимает её при высоком качестве, чем при низком
+    private static BitmapSource Pattern(int w, int h)
+    {
+        var pixels = new byte[w * h * 4];
+        for (var y = 0; y < h; y++)
+        for (var x = 0; x < w; x++)
+        {
+            var i = (y * w + x) * 4;
+            (pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]) = ((byte)(x * 7 + y), (byte)(x ^ y), (byte)(y * 5), 255);
+        }
+        var image = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, pixels, w * 4);
+        image.Freeze();
+        return image;
+    }
+
+    [Fact]
+    public void Save_Jpeg_WritesJpeg() => StaRunner.Run(() =>
+    {
+        Directory.CreateDirectory(_dir);
+        var low = Path.Combine(_dir, "low.jpg");
+        var high = Path.Combine(_dir, "high.jpg");
+        CaptureFiles.Save(low, Pattern(200, 120), SaveFormat.Jpeg, 10);
+        CaptureFiles.Save(high, Pattern(200, 120), SaveFormat.Jpeg, 95);
+
+        var bytes = File.ReadAllBytes(low);
+        Assert.Equal((0xFF, 0xD8), (bytes[0], bytes[1]));
+        Assert.True(new FileInfo(low).Length < new FileInfo(high).Length);
+    });
+
+    [Fact]
+    public void SavePackage_Jpeg_WritesJpgAndLinks() => StaRunner.Run(() =>
+    {
+        var capture = new Capture(Guid.NewGuid(), 40, 30, new RectI(0, 0, 40, 30), [], "", DateTimeOffset.UnixEpoch);
+        var item = new LetteredCapture('A', capture);
+
+        var folder = CaptureFiles.SavePackage(_dir, new DateTime(2026, 10, 27, 9, 0, 0), [(item, Pattern(40, 30))], SaveFormat.Jpeg, 90);
+
+        Assert.True(File.Exists(Path.Combine(folder, "A.jpg")));
+        Assert.False(File.Exists(Path.Combine(folder, "A.png")));
+        Assert.Contains("![Снимок A](A.jpg)", File.ReadAllText(Path.Combine(folder, "prompt.md")));
     });
 }
