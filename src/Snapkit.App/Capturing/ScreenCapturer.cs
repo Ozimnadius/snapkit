@@ -4,6 +4,7 @@ using System.Windows.Interop;
 using System.Windows.Media.Imaging;
 using Snapkit.App.Imaging;
 using Snapkit.Core;
+using Snapkit.Core.Session;
 using Forms = System.Windows.Forms;
 
 namespace Snapkit.App.Capturing;
@@ -30,8 +31,8 @@ public static partial class ScreenCapturer
         return monitors.FirstOrDefault(m => m.Contains(cursor.X, cursor.Y)) ?? monitors.First(m => m.IsPrimary);
     }
 
-    /// <summary>Снимок прямоугольника экрана: Bgra32, 96 DPI, непрозрачный, замороженный.</summary>
-    public static BitmapSource Capture(RectI physicalBounds)
+    /// <summary>Снимок прямоугольника экрана: Bgra32, 96 DPI, непрозрачный, замороженный. includeCursor — с указателем мыши.</summary>
+    public static BitmapSource Capture(RectI physicalBounds, bool includeCursor = false)
     {
         var screenDc = GetDC(0);
         var memoryDc = CreateCompatibleDC(screenDc);
@@ -44,6 +45,7 @@ public static partial class ScreenCapturer
             {
                 throw new InvalidOperationException("Не удалось снять экран.");
             }
+            if (includeCursor) DrawCursor(memoryDc, physicalBounds);
             var source = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(bitmap, 0, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
             return ImageCodecs.Opaque(source);
         }
@@ -55,6 +57,56 @@ public static partial class ScreenCapturer
             _ = ReleaseDC(0, screenDc);
         }
     }
+
+    // Указатель мыши таким, каким он был в момент снимка, — на своё место в кадре
+    private static void DrawCursor(nint dc, RectI bounds)
+    {
+        var info = new CursorInfo { Size = (uint)Marshal.SizeOf<CursorInfo>() };
+        if (!GetCursorInfo(ref info) || (info.Flags & CURSOR_SHOWING) == 0 || info.Cursor == 0) return;
+        var hotspot = (X: 0, Y: 0);
+        if (GetIconInfo(info.Cursor, out var icon))
+        {
+            hotspot = ((int)icon.HotspotX, (int)icon.HotspotY);
+            if (icon.Mask != 0) DeleteObject(icon.Mask);
+            if (icon.Color != 0) DeleteObject(icon.Color);
+        }
+        var (x, y) = CursorPlacement.TopLeft((info.Position.X, info.Position.Y), hotspot, bounds);
+        DrawIconEx(dc, x, y, info.Cursor, 0, 0, 0, 0, DI_NORMAL);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CursorInfo
+    {
+        public uint Size;
+        public uint Flags;
+        public nint Cursor;
+        public NativePoint Position;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct IconInfo
+    {
+        public int IsIcon;
+        public uint HotspotX;
+        public uint HotspotY;
+        public nint Mask;
+        public nint Color;
+    }
+
+    private const uint CURSOR_SHOWING = 0x1;
+    private const uint DI_NORMAL = 0x3;
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetCursorInfo(ref CursorInfo info);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetIconInfo(nint icon, out IconInfo info);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool DrawIconEx(nint dc, int x, int y, nint icon, int width, int height, uint step, nint brush, uint flags);
 
     private const uint SRCCOPY = 0x00CC0020;
     private const uint CAPTUREBLT = 0x40000000;

@@ -134,6 +134,7 @@ public partial class App : Application
             },
             CustomColors = () => _settings.CustomColors,
             SaveCustomColors = colors => SaveSettings(_settings with { CustomColors = colors }),
+            ShowCursor = () => _settings.ShowCursor,
         };
         _capture.CaptureAdded += (_, _) => ApplyStripView(StripPresence.AfterNewCapture(_view, _settings.ShowStrip));
         // Последняя снятая область — для «Предлагать ту же область»

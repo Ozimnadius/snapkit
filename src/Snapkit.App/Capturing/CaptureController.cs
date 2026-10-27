@@ -34,6 +34,9 @@ public sealed partial class CaptureController(SessionService session, Action hid
 
     /// <summary>Свои цвета разметки из настроек («#112233,#445566») и их сохранение.</summary>
     public Func<string>? CustomColors { get; set; }
+
+    /// <summary>Настройка «Показывать курсор мыши на снимке».</summary>
+    public Func<bool>? ShowCursor { get; set; }
     public Action<string>? SaveCustomColors { get; set; }
 
     public event EventHandler? Closed;
@@ -63,7 +66,8 @@ public sealed partial class CaptureController(SessionService session, Action hid
             // Дождаться, пока Windows перерисует экран без ленты, иначе она попадёт в кадр
             DwmFlush();
             DwmFlush();
-            frames = ScreenCapturer.GetMonitors().Select(m => (m, ScreenCapturer.Capture(m.Bounds))).ToList();
+            var withCursor = ShowCursor?.Invoke() == true;
+            frames = ScreenCapturer.GetMonitors().Select(m => (m, ScreenCapturer.Capture(m.Bounds, withCursor))).ToList();
         }
         catch (Exception ex)
         {
