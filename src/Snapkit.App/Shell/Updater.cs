@@ -34,8 +34,9 @@ public sealed class Updater(Func<AppSettings> settings, Action<AppSettings> save
             using var timeout = new CancellationTokenSource(CheckTimeout);
             json = await Http.GetStringAsync(LatestUrl, timeout.Token);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex)
         {
+            // Нет сети, GitHub недоступен, ответ оборвался — работаем дальше как есть
             Log.Info($"Проверка обновления не удалась: {ex.GetType().Name}");
             return;
         }

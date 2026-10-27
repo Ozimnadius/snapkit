@@ -51,4 +51,14 @@ public sealed class UninstallerTests : IDisposable
     [Fact]
     public void DeleteData_MissingDirectory_IsIgnored()
         => Uninstaller.DeleteData([Path.Combine(_root, "нет такой")], keep: "");
+
+    [Fact]
+    public void RemoveFolderCommand_WaitsForExitThenRemoves()
+    {
+        // Работающий Snapkit.exe держит свой файл — папку удаляем, только когда процесс завершился
+        var command = Uninstaller.RemoveFolderCommand(1234, @"C:\Users\a'b\Programs\Snapkit");
+        Assert.Contains("Wait-Process -Id 1234", command);
+        Assert.Contains(@"Remove-Item -LiteralPath 'C:\Users\a''b\Programs\Snapkit' -Recurse -Force", command);
+        Assert.True(command.IndexOf("Wait-Process", StringComparison.Ordinal) < command.IndexOf("Remove-Item", StringComparison.Ordinal));
+    }
 }

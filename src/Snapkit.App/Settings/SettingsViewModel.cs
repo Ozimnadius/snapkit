@@ -12,10 +12,10 @@ namespace Snapkit.App.Settings;
 /// </summary>
 public sealed class SettingsViewModel : ObservableObject
 {
-    private readonly AppSettings _current;
     private Hotkey? _region1, _region2, _full1, _full2;
     private bool _captureEnabled, _fullScreenEnabled;
     private string _saveFolder;
+    private bool _saveFolderChanged;
     private string _accent;
     private AppTheme _theme;
     private SaveFormat _saveFormat;
@@ -23,7 +23,6 @@ public sealed class SettingsViewModel : ObservableObject
 
     public SettingsViewModel(AppSettings current, string version)
     {
-        _current = current;
         Version = version;
         LaunchAtStartup = current.LaunchAtStartup;
         ShowNotifications = current.ShowNotifications;
@@ -94,15 +93,25 @@ public sealed class SettingsViewModel : ObservableObject
     public bool AutoSave { get; set; }
     public SaveFormat SaveFormat { get => _saveFormat; set => Set(ref _saveFormat, value); }
     public int JpegQuality { get => _jpegQuality; set => Set(ref _jpegQuality, Math.Clamp(value, 1, 100)); }
-    public string SaveFolder { get => _saveFolder; set => Set(ref _saveFolder, value); }
+    public string SaveFolder
+    {
+        get => _saveFolder;
+        set
+        {
+            if (Set(ref _saveFolder, value)) _saveFolderChanged = true;
+        }
+    }
 
     // «Вид»
     public AppTheme Theme { get => _theme; set => Set(ref _theme, value); }
     /// <summary>Цвет программы: значение из AccentOptions.All.</summary>
     public string Accent { get => _accent; set => Set(ref _accent, value); }
 
-    /// <summary>Новые настройки: всё, чего окно не касается (место ленты, свои цвета…), — из прежних.</summary>
-    public AppSettings Build() => _current with
+    /// <summary>
+    /// Новые настройки поверх latest — настроек на момент «Сохранить»: всё, чего окно не касается (место ленты,
+    /// прежняя рамка, свои цвета, отложенное обновление), остаётся таким, каким стало, пока окно было открыто.
+    /// </summary>
+    public AppSettings Build(AppSettings latest) => latest with
     {
         LaunchAtStartup = LaunchAtStartup,
         ShowNotifications = ShowNotifications,
@@ -118,8 +127,9 @@ public sealed class SettingsViewModel : ObservableObject
         AutoSave = AutoSave,
         SaveFormat = _saveFormat,
         JpegQuality = _jpegQuality,
-        // Папка по умолчанию в файл не пишется
-        LastSaveFolder = _current.LastSaveFolder.Length == 0 && _saveFolder == CaptureFiles.DefaultSaveFolder ? "" : _saveFolder,
+        // Папку не меняли в окне — остаётся та, что выбрана в «Сохранить снимок…» и т. п.; папка по умолчанию в файл не пишется
+        LastSaveFolder = !_saveFolderChanged ? latest.LastSaveFolder
+            : _saveFolder == CaptureFiles.DefaultSaveFolder ? "" : _saveFolder,
         Theme = _theme,
         AccentColor = _accent,
     };

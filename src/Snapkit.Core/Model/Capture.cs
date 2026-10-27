@@ -14,7 +14,9 @@ public sealed record Capture(
     RectI ScreenBounds,
     ImmutableList<Annotation> Annotations,
     string SnapshotNote,
-    DateTimeOffset CreatedAt)
+    DateTimeOffset CreatedAt,
+    // Имя файла автосохранения (без расширения), выданное при первом «Готово»: правка перезапишет его
+    string? AutoSaveName = null)
 {
     public bool HasSnapshotNote => !string.IsNullOrWhiteSpace(SnapshotNote);
 

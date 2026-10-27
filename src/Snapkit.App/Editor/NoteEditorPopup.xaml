@@ -13,7 +13,7 @@
                 <TextBlock x:Name="Placeholder" Text="Комментарий…" Foreground="{DynamicResource MutedTextBrush}"
                            IsHitTestVisible="False" Margin="2,0,0,0" />
                 <TextBox x:Name="NoteText" Background="Transparent" BorderThickness="0" Padding="0"
-                         Foreground="{DynamicResource TextBrush}" CaretBrush="White" TextWrapping="Wrap"
+                         Foreground="{DynamicResource TextBrush}" CaretBrush="{DynamicResource TextBrush}" TextWrapping="Wrap"
                          AcceptsReturn="True" MaxHeight="140" VerticalScrollBarVisibility="Auto"
                          TextChanged="NoteText_TextChanged" PreviewKeyDown="NoteText_PreviewKeyDown" />
             </Grid>

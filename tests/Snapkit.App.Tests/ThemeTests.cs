@@ -49,4 +49,19 @@ public class ThemeTests
             ThemeManager.Apply(ThemePalette.Dark);
         }
     });
+
+    [Fact]
+    public void TextBoxCaret_FollowsTheme()
+    {
+        // Белый курсор на белом поле светлой темы не виден — печатать пришлось бы вслепую
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "Snapkit.slnx"))) root = root.Parent;
+        var offenders = Directory.GetFiles(Path.Combine(root!.FullName, "src", "Snapkit.App"), "*.xaml", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+            .SelectMany(f => File.ReadAllLines(f).Select((line, i) => (File: Path.GetFileName(f), Line: i + 1, Text: line)))
+            .Where(x => x.Text.Contains("CaretBrush=\"White\""))
+            .Select(x => $"{x.File}:{x.Line}")
+            .ToList();
+        Assert.True(offenders.Count == 0, "Белый курсор в поле ввода: " + string.Join(", ", offenders));
+    }
 }

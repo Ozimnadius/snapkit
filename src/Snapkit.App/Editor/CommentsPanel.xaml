@@ -11,7 +11,7 @@
                 <TextBlock Text="Комментарий к снимку" Foreground="{DynamicResource MutedTextBrush}" FontSize="12" Margin="0,0,0,6" />
                 <Border Background="{DynamicResource PanelRaisedBrush}" CornerRadius="8" Padding="8,6">
                     <TextBox x:Name="SnapshotNoteText" Background="Transparent" BorderThickness="0" Padding="0"
-                             Foreground="{DynamicResource TextBrush}" CaretBrush="White" TextWrapping="Wrap"
+                             Foreground="{DynamicResource TextBrush}" CaretBrush="{DynamicResource TextBrush}" TextWrapping="Wrap"
                              AcceptsReturn="True" MinHeight="54" MaxHeight="140" VerticalScrollBarVisibility="Auto"
                              TextChanged="SnapshotNoteText_TextChanged" />
                 </Border>

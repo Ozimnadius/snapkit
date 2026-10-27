@@ -30,4 +30,13 @@ public class ReleaseInfoTests
     [InlineData("{}")]
     [InlineData("""{ "tag_name": "версия", "assets": [] }""")]
     public void Parse_Garbage_IsNull(string json) => Assert.Null(ReleaseInfo.Parse(json));
+
+    [Fact]
+    public void Parse_NonStringFields_IsNull()
+        => Assert.Null(ReleaseInfo.Parse("""{ "tag_name": 5, "assets": [ { "name": 7, "browser_download_url": [], "digest": {} } ] }"""));
+
+    [Fact]
+    public void Parse_ForeignDownloadUrl_IsNull()
+        // Подменённый ответ задал бы и ссылку, и хеш — файл берём только из релизов Snapkit
+        => Assert.Null(ReleaseInfo.Parse(Json($$"""{ "name": "Snapkit.exe", "browser_download_url": "https://example.com/Snapkit.exe", "digest": "sha256:{{Hash}}" }""")));
 }

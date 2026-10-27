@@ -415,9 +415,13 @@ public partial class App : Application
         if (captures.FirstOrDefault(c => c.Id == id) is not { } capture) return;
         try
         {
-            var path = Path.Combine(SaveFolder(), AutoSaveNames.For(capture, captures, _settings.SaveFormat));
+            var folder = SaveFolder();
+            var extension = PackageExport.Extension(_settings.SaveFormat);
+            var name = AutoSaveNames.BaseName(capture, n => File.Exists(Path.Combine(folder, n + extension)));
             var rendered = CaptureRenderer.Render(_session.GetSource(id), capture, CaptureLetters.Assign(captures)[id]);
-            CaptureFiles.Save(path, rendered, _settings.SaveFormat, _settings.JpegQuality);
+            CaptureFiles.Save(Path.Combine(folder, name + extension), rendered, _settings.SaveFormat, _settings.JpegQuality);
+            // Имя закрепляется за снимком: сосед той же секунды ушёл с ленты — правка всё равно попадёт в свой файл
+            if (capture.AutoSaveName != name) _session.UpdateCapture(capture with { AutoSaveName = name });
         }
         catch (Exception ex)
         {
@@ -788,7 +792,7 @@ public partial class App : Application
             return;
         }
         var window = new Settings.SettingsWindow(new Settings.SettingsViewModel(_settings, AppVersion));
-        window.Saved += (_, next) => ApplySettings(next);
+        window.Saved += (_, model) => ApplySettings(model.Build(_settings));
         // Удаление идёт отдельным запуском с --uninstall: вопрос задаёт он, эту копию он закроет сам
         window.UninstallRequested += (_, _) =>
         {
@@ -922,6 +926,8 @@ public partial class App : Application
         }
         MessageBox.Show("Snapkit удалён. Сохранённые снимки остались в папке сохранения.", "Snapkit",
             MessageBoxButton.OK, MessageBoxImage.Information);
+        try { Uninstaller.RemoveProgramFolderAfterExit(); }
+        catch (Exception) { /* журнала уже нет — не воссоздаём его */ }
         Environment.Exit(0);
     }
 

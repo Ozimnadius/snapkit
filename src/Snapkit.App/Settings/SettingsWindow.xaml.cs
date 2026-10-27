@@ -37,8 +37,8 @@ public sealed partial class SettingsWindow : Window
         Closed += (_, _) => StopRecording();
     }
 
-    /// <summary>Нажали «Сохранить»: новые настройки.</summary>
-    public event EventHandler<AppSettings>? Saved;
+    /// <summary>Нажали «Сохранить»: App собирает новые настройки через Build поверх нынешних.</summary>
+    public event EventHandler<SettingsViewModel>? Saved;
 
     /// <summary>Ссылка «Удалить Snapkit с компьютера…».</summary>
     public event EventHandler? UninstallRequested;
@@ -153,7 +153,7 @@ public sealed partial class SettingsWindow : Window
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         if (!_model.CanSave) return;
-        Saved?.Invoke(this, _model.Build());
+        Saved?.Invoke(this, _model);
         Close();
     }
 

@@ -37,7 +37,7 @@ public static class Uninstaller
         foreach (var directory in directories) Delete(Normalize(directory), kept);
     }
 
-    /// <summary>Всё по разделу 2.10 описания; папку программы удаляет отложенная команда после выхода.</summary>
+    /// <summary>Всё по разделу 2.10 описания, кроме папки программы — её удаляет RemoveProgramFolderAfterExit.</summary>
     public static void Run(string saveFolder)
     {
         AutoStart.Apply(enabled: false, exePath: "");
@@ -49,20 +49,27 @@ public static class Uninstaller
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Snapkit"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Snapkit"),
         ], saveFolder);
-        RemoveProgramFolderLater(AutoStart.InstallDirectory);
     }
 
-    // Работающий exe сам себя не удалит — это сделает cmd через пару секунд после выхода
-    private static void RemoveProgramFolderLater(string directory)
+    /// <summary>
+    /// Папку программы удалить после выхода: работающий Snapkit.exe держит свой файл. Вызывать последним,
+    /// прямо перед выходом, — отдельный скрытый процесс дождётся завершения этого и сотрёт папку.
+    /// </summary>
+    public static void RemoveProgramFolderAfterExit()
     {
-        if (!Directory.Exists(directory)) return;
-        Process.Start(new ProcessStartInfo("cmd.exe", $"/c ping 127.0.0.1 -n 3 > nul & rmdir /s /q \"{directory}\"")
+        if (!Directory.Exists(AutoStart.InstallDirectory)) return;
+        Process.Start(new ProcessStartInfo("powershell.exe", $"-NoProfile -NonInteractive -WindowStyle Hidden -Command \"{RemoveFolderCommand(Environment.ProcessId, AutoStart.InstallDirectory)}\"")
         {
             CreateNoWindow = true,
             UseShellExecute = false,
             WorkingDirectory = Path.GetTempPath(),
         });
     }
+
+    /// <summary>Команда PowerShell: дождаться выхода процесса и удалить папку.</summary>
+    public static string RemoveFolderCommand(int processId, string directory)
+        => $"Wait-Process -Id {processId} -ErrorAction SilentlyContinue; " +
+           $"Remove-Item -LiteralPath '{directory.Replace("'", "''")}' -Recurse -Force -ErrorAction SilentlyContinue";
 
     private static void Delete(string directory, string? keep)
     {

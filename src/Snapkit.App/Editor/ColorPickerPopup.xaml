@@ -16,7 +16,7 @@
                                 BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" />
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="White" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource TextBrush}" />
                                 <Setter TargetName="Bd" Property="BorderThickness" Value="2" />
                             </Trigger>
                         </ControlTemplate.Triggers>

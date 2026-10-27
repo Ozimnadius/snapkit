@@ -21,7 +21,7 @@ public class SettingsWindowTests
         var states = new List<bool>();
         window.RecordingChanged += (_, recording) => states.Add(recording);
         AppSettings? saved = null;
-        window.Saved += (_, next) => saved = next;
+        window.Saved += (_, model) => saved = model.Build(new AppSettings() with { CaptureHotkeys = "PrintScreen" });
         Pump();
 
         window.Region2Box.Frame.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
