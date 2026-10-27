@@ -109,7 +109,6 @@ public partial class App : Application
         };
         _clipboard = new ClipboardService();
         _publisher = new PackagePublisher(_session, _clipboard);
-        _clipboard.ClipboardChanged += (_, _) => UpdatePackageDisplaced();
         _session.Changed += (_, change) =>
         {
             RefreshStrip();
@@ -241,7 +240,7 @@ public partial class App : Application
             if (_settings.StripCollapsed) SaveSettings(_settings with { StripCollapsed = false });
         };
         _strip.PasteImageRequested += (_, _) => ImportImageFromClipboard();
-        _strip.CopyPackageRequested += (_, _) => RunClipboard(_publisher.CopyPackageCommandAsync);
+        _strip.CopyAllRequested += (_, _) => RunClipboard(_publisher.CopyAllCommandAsync);
         _strip.CopyCaptureRequested += (_, id) => RunClipboard(() => _publisher.CopyCaptureAsync(id));
         _strip.ExitRequested += (_, _) => ExitApp();
         _strip.ShowStripToggled += (_, show) => SetShowStrip(show);
@@ -250,7 +249,7 @@ public partial class App : Application
         _strip.DragFileFor = DragFileFor;
         _strip.DroppedOutside += (_, id) => PasteNotesAfterDrop(id);
         _strip.SaveCaptureRequested += (_, id) => SaveCapture(id);
-        _strip.SavePackageRequested += (_, _) => SavePackage();
+        _strip.SaveAllRequested += (_, _) => SaveAll();
         _strip.FilesDropped += (_, files) => ImportImages(files);
         _strip.ImportFileRequested += (_, _) =>
         {
@@ -380,10 +379,10 @@ public partial class App : Application
         }
     }
 
-    /// <summary>«Сохранить пакет…»: папка с A.png, B.png… и prompt.md; отметки «отправлен» не меняются.</summary>
-    private void SavePackage()
+    /// <summary>«Сохранить всё…»: папка со всей лентой — A.png, B.png… и prompt.md; отметки «отправлен» не меняются.</summary>
+    private void SaveAll()
     {
-        var package = PackageSelector.ForExport(_session.Model.Captures);
+        var package = PackageSelector.All(_session.Model.Captures);
         if (package.Count == 0)
         {
             Toasts.Show("Сначала сделайте снимок.");
@@ -391,18 +390,18 @@ public partial class App : Application
         }
         try
         {
-            var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Куда сохранить пакет", InitialDirectory = SaveFolder() };
+            var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Куда сохранить снимки", InitialDirectory = SaveFolder() };
             if (dialog.ShowDialog(_strip) != true) return;
             var items = package
                 .Select(p => (p, CaptureRenderer.Render(_session.GetSource(p.Capture.Id), p.Capture, p.Letter)))
                 .ToList();
             var folder = CaptureFiles.SavePackage(dialog.FolderName, DateTime.Now, items);
             SaveSettings(_settings with { LastSaveFolder = dialog.FolderName });
-            Toasts.Show("Пакет сохранён", "Открыть папку", () => System.Diagnostics.Process.Start("explorer.exe", $"\"{folder}\""));
+            Toasts.Show("Снимки сохранены", "Открыть папку", () => System.Diagnostics.Process.Start("explorer.exe", $"\"{folder}\""));
         }
         catch (Exception ex)
         {
-            Log.Error("сохранение пакета", ex);
+            Log.Error("сохранение снимков", ex);
             Toasts.Error("Не удалось сохранить файл. Подробности — в журнале");
         }
     }
@@ -496,14 +495,10 @@ public partial class App : Application
         if (action == ClipboardAction.Package) RunClipboard(_publisher.PublishPackageAsync);
     }
 
-    private void UpdatePackageDisplaced()
-        => _stripModel.PackageDisplaced = _session.Model.UnsentCount > 0 && !IsPackageCurrent();
-
     // Что можно вставить по Ctrl+V — для перехвата на потоке хука
     private void UpdatePasteState()
     {
         _hasPasteContent = _publisher.HasPasteContent;
-        UpdatePackageDisplaced();
     }
 
     private async void RunClipboard(Func<Task> action)

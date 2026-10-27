@@ -62,18 +62,18 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
     /// <summary>Пакет ленты — неотправленные снимки.</summary>
     public Task PublishPackageAsync() => PublishAsync(new StripSource());
 
-    /// <summary>«Копировать пакет»: если всё уже отправлено — снова вся лента (вставить во второй чат).</summary>
-    public async Task CopyPackageCommandAsync()
+    /// <summary>«Копировать всё»: вся лента, и отправленные тоже — галочки снимаются, Ctrl+V вставит все снимки.</summary>
+    public async Task CopyAllCommandAsync()
     {
         if (session.Model.Captures.Count == 0)
         {
             Toasts.Show("Сначала сделайте снимок.");
             return;
         }
-        if (session.Model.UnsentCount == 0) session.MarkAllUnsent();
+        if (session.Model.UnsentCount < session.Model.Captures.Count) session.MarkAllUnsent();
         await PublishPackageAsync();
         var count = RussianPlural.Format(session.Model.UnsentCount, "снимок", "снимка", "снимков");
-        Toasts.Show($"Пакет скопирован: {count}. Нажмите Ctrl+V в чате");
+        Toasts.Show($"Скопировано: {count}. Нажмите Ctrl+V в чате");
     }
 
     /// <summary>Один снимок из ленты — картинка и его комментарии (кнопка «Копировать снимок»).</summary>

@@ -1,6 +1,6 @@
 namespace Snapkit.Core;
 
-/// <summary>Имена и текст для «Сохранить снимок…» и «Сохранить пакет…».</summary>
+/// <summary>Имена и текст для «Сохранить снимок…» и «Сохранить всё…».</summary>
 public static class PackageExport
 {
     /// <summary>Имя файла или папки по времени: «2026-10-26_15-40-12» — сортируется по порядку.</summary>

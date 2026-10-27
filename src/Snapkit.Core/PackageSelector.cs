@@ -18,12 +18,11 @@ public static class PackageSelector
     }
 
     /// <summary>
-    /// Снимки для «Сохранить пакет…» (правило 6.5): неотправленные, а если их нет — вся лента;
-    /// буквы A, B… по порядку; отметки не меняются.
+    /// Вся лента для «Сохранить всё…»: все снимки, и отправленные тоже, с буквами их мест;
+    /// отметки не меняются.
     /// </summary>
-    public static IReadOnlyList<LetteredCapture> ForExport(IReadOnlyList<Capture> strip)
+    public static IReadOnlyList<LetteredCapture> All(IReadOnlyList<Capture> strip)
     {
-        if (strip.Any(c => !c.IsSent)) return Select(strip);
         var letters = CaptureLetters.Assign(strip);
         return strip.Select(c => new LetteredCapture(letters[c.Id], c)).ToList();
     }

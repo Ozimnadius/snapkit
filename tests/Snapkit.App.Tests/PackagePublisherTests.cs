@@ -147,7 +147,7 @@ public sealed class PackagePublisherTests : IDisposable
     }
 
     [Fact]
-    public void CopyPackage_WhenAllSent_ResendsWholeStrip()
+    public void CopyAll_WhenAllSent_ResendsWholeStrip()
     {
         SessionService? session = null;
         _host.Run(async () =>
@@ -156,11 +156,32 @@ public sealed class PackagePublisherTests : IDisposable
             var a = session.AddCapture(Gray(10, 10), new RectI(0, 0, 10, 10), [Box("a")], "");
             var b = session.AddCapture(Gray(10, 10), new RectI(0, 0, 10, 10), [Box("b")], "");
             session.MarkSent([a, b]);
-            await new PackagePublisher(session, _host.Service).CopyPackageCommandAsync();
+            await new PackagePublisher(session, _host.Service).CopyAllCommandAsync();
         });
 
         Assert.Equal(2, session!.Model.UnsentCount);
         Assert.Contains("Снимок B", _foreign.ReadText());
+        _host.Run(() => session.FlushAsync());
+    }
+
+    [Fact]
+    public void CopyAll_WithSomeSent_CopiesWholeStrip()
+    {
+        // «Копировать всё» — вся лента, а не только неотправленные: галочки снимаются
+        SessionService? session = null;
+        _host.Run(async () =>
+        {
+            session = new SessionService(new SessionStore(_dir));
+            var a = session.AddCapture(Gray(10, 10), new RectI(0, 0, 10, 10), [Box("a")], "");
+            session.AddCapture(Gray(10, 10), new RectI(0, 0, 10, 10), [Box("b")], "");
+            session.MarkSent([a]);
+            await new PackagePublisher(session, _host.Service).CopyAllCommandAsync();
+        });
+
+        Assert.Equal(2, session!.Model.UnsentCount);
+        var text = _foreign.ReadText();
+        Assert.Contains("Снимок A", text);
+        Assert.Contains("Снимок B", text);
         _host.Run(() => session.FlushAsync());
     }
 }

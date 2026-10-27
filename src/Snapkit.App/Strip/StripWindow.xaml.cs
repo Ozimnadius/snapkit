@@ -48,7 +48,7 @@ public partial class StripWindow : Window
     public event EventHandler? ClearRequested;
     public event EventHandler? CloseRequested;
     public event EventHandler? PasteImageRequested;
-    public event EventHandler? CopyPackageRequested;
+    public event EventHandler? CopyAllRequested;
     public event EventHandler? ExitRequested;
     public event EventHandler<bool>? TopmostToggled;
     public event EventHandler? Moved;
@@ -60,7 +60,7 @@ public partial class StripWindow : Window
     // Бросили на саму ленту (перестановка), а не в другое окно
     private bool _droppedOnStrip;
     public event EventHandler<Guid>? SaveCaptureRequested;
-    public event EventHandler? SavePackageRequested;
+    public event EventHandler? SaveAllRequested;
     public event EventHandler? ImportFileRequested;
     public event EventHandler<string[]>? FilesDropped;
     public event EventHandler<bool>? ShowStripToggled;
@@ -74,6 +74,8 @@ public partial class StripWindow : Window
     }
 
     private void NewCapture_Click(object sender, RoutedEventArgs e) => NewCaptureRequested?.Invoke(this, EventArgs.Empty);
+
+    private void CopyAll_Click(object sender, RoutedEventArgs e) => CopyAllRequested?.Invoke(this, EventArgs.Empty);
 
     private void Clear_Click(object sender, RoutedEventArgs e) => ClearRequested?.Invoke(this, EventArgs.Empty);
 
@@ -223,8 +225,7 @@ public partial class StripWindow : Window
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Импортировать файл…", ImportFileRequested));
         menu.Items.Add(Item("Вставить изображение из буфера", PasteImageRequested));
-        menu.Items.Add(Item("Копировать пакет", CopyPackageRequested));
-        menu.Items.Add(Item("Сохранить пакет…", SavePackageRequested));
+        menu.Items.Add(Item("Сохранить всё…", SaveAllRequested));
         menu.Items.Add(Item("Очистить ленту", ClearRequested));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Выйти", ExitRequested));
