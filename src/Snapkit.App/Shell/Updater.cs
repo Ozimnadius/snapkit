@@ -19,14 +19,16 @@ public sealed class Updater(Func<AppSettings> settings, Action<AppSettings> save
 
     /// <summary>Страница последнего релиза — для копий, которые сами не обновляются.</summary>
     public const string ReleasePageUrl = "https://github.com/Ozimnadius/snapkit/releases/latest";
+
+    // Статические поля задаются сверху вниз: версия нужна HTTP-клиенту (заголовок User-Agent), поэтому она выше
+    /// <summary>Версия этой копии: «0.4.0».</summary>
+    public static Version CurrentVersion { get; } =
+        typeof(Updater).Assembly.GetName().Version is { } v ? new Version(v.Major, v.Minor, v.Build) : new Version(0, 0, 0);
+
     private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(10);
     private static readonly HttpClient Http = CreateClient();
     private bool _installing;
-
-    /// <summary>Версия этой копии: «0.3.1».</summary>
-    public static Version CurrentVersion { get; } =
-        typeof(Updater).Assembly.GetName().Version is { } v ? new Version(v.Major, v.Minor, v.Build) : new Version(0, 0, 0);
 
     /// <summary>Проверить GitHub и, если есть что, предложить обновление уведомлением. Ошибки сети — только в журнал.</summary>
     public async Task CheckAsync()
