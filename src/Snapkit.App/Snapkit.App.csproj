@@ -15,7 +15,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <Product>Snapkit</Product>
     <!-- В релизе версию задаёт метка git (v0.1.0 → 0.1.0), см. .github/workflows/release.yml -->
-    <Version>0.4.0</Version>
+    <Version>0.4.1</Version>
     <!-- WFO0003 советует задавать DPI через API WinForms, но это WPF-приложение:
          для него режим PerMonitorV2 правильно задавать в app.manifest. -->
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
