@@ -37,6 +37,15 @@ public sealed class KeyRouter(Func<PasteContext> pasteContext, Func<Mod>? actual
     private readonly HashSet<int> _suppressedDown = [];
 
     public IReadOnlyDictionary<Hotkey, KeyAction> Hotkeys { get => _hotkeys; set => _hotkeys = value; }
+
+    private volatile Action<Hotkey>? _recordHotkey;
+
+    /// <summary>
+    /// Запись сочетания в поле настроек: пока задано, любая не-модификаторная клавиша (вместе с зажатыми
+    /// модификаторами) отдаётся сюда и глотается; снимки и перехват Ctrl+V не срабатывают.
+    /// Вызывается с потока хука клавиатуры.
+    /// </summary>
+    public Action<Hotkey>? RecordHotkey { get => _recordHotkey; set => _recordHotkey = value; }
     public bool PasteInProgress
     {
         get => _pasteInProgress;
@@ -77,6 +86,13 @@ public sealed class KeyRouter(Func<PasteContext> pasteContext, Func<Mod>? actual
     {
         var logical = Logical;
 
+        if (_recordHotkey is { } record)
+        {
+            _suppressedDown.Add(vk);
+            record(new Hotkey(ModKeys.Summary(logical), vk));
+            return Swallow;
+        }
+
         if (_pasteInProgress && vk == Vk.Escape)
         {
             _escapePressed = true;
@@ -110,6 +126,12 @@ public sealed class KeyRouter(Func<PasteContext> pasteContext, Func<Mod>? actual
         if (_suppressedDown.Remove(vk)) return Swallow;
 
         var logical = Logical;
+        // Print Screen иногда приходит только отпусканием — при записи сочетания тоже
+        if (vk == Vk.Snapshot && _recordHotkey is { } record)
+        {
+            record(new Hotkey(ModKeys.Summary(logical), vk));
+            return Swallow;
+        }
         if (_pasteInProgress && vk == Vk.V && ModKeys.HasCtrl(logical)) return Swallow;
 
         // Print Screen иногда приходит только отпусканием, без нажатия.

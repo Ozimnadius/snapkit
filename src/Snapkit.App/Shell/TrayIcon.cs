@@ -17,6 +17,7 @@ public sealed class TrayIcon : IDisposable
         _showStrip.Click += (_, _) => ShowStripToggled?.Invoke(this, _showStrip.Checked);
         menu.Items.Add(_showStrip);
         menu.Items.Add(new Forms.ToolStripSeparator());
+        menu.Items.Add("Настройки…", null, (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty));
         menu.Items.Add("Выйти", null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
 
         _icon = new Forms.NotifyIcon
@@ -36,6 +37,7 @@ public sealed class TrayIcon : IDisposable
     public event EventHandler? ShowStripRequested;
     public event EventHandler? ToggleStripRequested;
     public event EventHandler? ExitRequested;
+    public event EventHandler? SettingsRequested;
 
     /// <summary>Галочка «Показывать ленту» в меню значка.</summary>
     public event EventHandler<bool>? ShowStripToggled;

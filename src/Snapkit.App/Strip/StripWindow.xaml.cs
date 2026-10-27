@@ -50,6 +50,7 @@ public partial class StripWindow : Window
     public event EventHandler? PasteImageRequested;
     public event EventHandler? CopyAllRequested;
     public event EventHandler? ExitRequested;
+    public event EventHandler? SettingsRequested;
     public event EventHandler<bool>? TopmostToggled;
     public event EventHandler? Moved;
     public event EventHandler<(Guid Id, int Slot)>? ReorderRequested;
@@ -228,6 +229,7 @@ public partial class StripWindow : Window
         menu.Items.Add(Item("Сохранить всё…", SaveAllRequested));
         menu.Items.Add(Item("Очистить ленту", ClearRequested));
         menu.Items.Add(new Separator());
+        menu.Items.Add(Item("Настройки…", SettingsRequested));
         menu.Items.Add(Item("Выйти", ExitRequested));
         menu.IsOpen = true;
     }

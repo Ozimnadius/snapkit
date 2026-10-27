@@ -16,6 +16,9 @@ public abstract class ObservableObject : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
         return true;
     }
+
+    /// <summary>Сообщить об изменении вычисляемого свойства.</summary>
+    protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
 /// <summary>Простая команда для кнопок и пунктов меню.</summary>

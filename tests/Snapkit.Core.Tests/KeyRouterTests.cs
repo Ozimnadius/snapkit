@@ -279,4 +279,39 @@ public class KeyRouterTests
         }
         Assert.Equal(Mod.None, r.Logical);
     }
+
+    [Fact]
+    public void Recording_SwallowsPrintScreenWithoutCapture()
+    {
+        // Окно настроек ждёт сочетание: Print Screen не запускает снимок и не уходит в Windows («Ножницы»)
+        var r = new KeyRouter(() => Ready);
+        var recorded = new List<Hotkey>();
+        r.RecordHotkey = recorded.Add;
+
+        Assert.Equal(Swallow, r.Process(Down(Vk.Snapshot)));
+        Assert.Equal(Swallow, r.Process(Up(Vk.Snapshot)));
+        r.Process(Down(Vk.LCtrl));
+        Assert.Equal(Swallow, r.Process(Down(0x7B)));
+        r.Process(Up(0x7B));
+        r.Process(Up(Vk.LCtrl));
+        // Голый Ctrl — ещё не сочетание
+        r.Process(Down(Vk.LCtrl));
+        r.Process(Up(Vk.LCtrl));
+
+        Assert.Equal(new[] { new Hotkey(HotkeyMods.None, Vk.Snapshot), new Hotkey(HotkeyMods.Ctrl, 0x7B) }, recorded);
+
+        r.RecordHotkey = null;
+        Assert.Equal(new KeyDecision(true, KeyAction.CaptureRegion), r.Process(Down(Vk.Snapshot)));
+    }
+
+    [Fact]
+    public void Recording_PrintScreenOnlyReleased_IsRecorded()
+    {
+        // Print Screen иногда приходит только отпусканием
+        var r = new KeyRouter(() => Ready);
+        var recorded = new List<Hotkey>();
+        r.RecordHotkey = recorded.Add;
+        Assert.Equal(Swallow, r.Process(Up(Vk.Snapshot)));
+        Assert.Equal(new[] { new Hotkey(HotkeyMods.None, Vk.Snapshot) }, recorded);
+    }
 }

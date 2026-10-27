@@ -47,6 +47,7 @@ public partial class App : Application
     // Что сейчас на экране: развёрнутая лента, капсула или ничего
     private StripView _view = StripView.Hidden;
     private TrayIcon? _tray;
+    private Settings.SettingsWindow? _settingsWindow;
     private CaptureController _capture = null!;
     private ClipboardService? _clipboard;
     private PackagePublisher _publisher = null!;
@@ -252,6 +253,7 @@ public partial class App : Application
         _strip.CopyAllRequested += (_, _) => RunClipboard(_publisher.CopyAllCommandAsync);
         _strip.CopyCaptureRequested += (_, id) => RunClipboard(() => _publisher.CopyCaptureAsync(id));
         _strip.ExitRequested += (_, _) => ExitApp();
+        _strip.SettingsRequested += (_, _) => OpenSettings();
         _strip.ShowStripToggled += (_, show) => SetShowStrip(show);
         _strip.MinimizeRequested += (_, _) => ApplyStripView(StripPresence.OnMinimize(_settings.ShowStrip));
         _strip.ReorderRequested += (_, drop) => _session.MoveBefore(drop.Id, drop.Slot);
@@ -290,6 +292,7 @@ public partial class App : Application
             else ShowStrip();
         };
         _tray.ExitRequested += (_, _) => ExitApp();
+        _tray.SettingsRequested += (_, _) => OpenSettings();
         _tray.ShowStripChecked = _settings.ShowStrip;
         _tray.ShowStripToggled += (_, show) => SetShowStrip(show);
     }
@@ -487,12 +490,11 @@ public partial class App : Application
     /// <summary>Глобальные клавиши: Print Screen — снимок, Ctrl+V — вставка пачки.</summary>
     private void StartKeyboardHook()
     {
-        var captureKeys = HotkeyParser.ParseList(_settings.CaptureHotkeys);
         _router = new KeyRouter(() => new PasteContext(_hasPasteContent, IsPackageCurrent(), Foreground.IsOwn()), ModifierState.Read)
         {
             Hotkeys = HotkeyRules.BuildMap(_settings),
         };
-        _stripModel.EmptyHint = EmptyHintFor(captureKeys);
+        _stripModel.EmptyHint = EmptyHintFor(_settings);
         _paste = new PasteCoordinator(_session, _clipboard!, _router, _publisher.CreatePastePlan, () => _settings.ClearStripAfterPaste,
             restoreAfter: _publisher.RestoreAfterPasteAsync);
         _hook = new KeyboardHookThread(_router, action => Dispatcher.BeginInvoke(() => OnKeyAction(action)));
@@ -505,8 +507,12 @@ public partial class App : Application
     }
 
     /// <summary>«Нажми Print Screen или «Новый снимок»» — с клавишами из настроек.</summary>
-    private static string EmptyHintFor(IReadOnlyList<Hotkey> keys)
+    private static string EmptyHintFor(AppSettings settings)
     {
+        var keys = settings.CaptureHotkeysEnabled
+            ? HotkeyParser.ParseList(settings.CaptureHotkeys).Take(HotkeyRules.PerAction).ToList()
+            : [];
+        if (keys.Count == 0) return "Нажми «Новый снимок»";
         var names = keys.Select(HotkeyParser.Display).ToList();
         var list = names.Count == 1 ? names[0] : string.Join(", ", names);
         return $"Нажми {list} или «Новый снимок»";
@@ -752,6 +758,55 @@ public partial class App : Application
         {
             Log.Error("сохранение настроек", ex);
             Toasts.Error("Не удалось сохранить настройки");
+        }
+    }
+
+    /// <summary>Номер версии программы: «0.3.1».</summary>
+    private static string AppVersion
+        => typeof(App).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "?";
+
+    /// <summary>«Настройки…»: одно окно на всю программу, повторный вызов выводит его вперёд.</summary>
+    private void OpenSettings()
+    {
+        if (_settingsWindow is not null)
+        {
+            _settingsWindow.Activate();
+            return;
+        }
+        var window = new Settings.SettingsWindow(new Settings.SettingsViewModel(_settings, AppVersion));
+        window.Saved += (_, next) => ApplySettings(next);
+        // Пока поле ждёт сочетание, перехват отдаёт нажатия окну, а не снимку
+        window.RecordingChanged += (_, recording) =>
+        {
+            if (_router is null) return;
+            _router.RecordHotkey = recording ? hotkey => Dispatcher.BeginInvoke(() => window.Record(hotkey)) : null;
+        };
+        window.Closed += (_, _) =>
+        {
+            if (_router is not null) _router.RecordHotkey = null;
+            _settingsWindow = null;
+        };
+        _settingsWindow = window;
+        window.Show();
+        window.Activate();
+    }
+
+    /// <summary>«Сохранить» в окне настроек: записать файл и раздать новые значения.</summary>
+    private void ApplySettings(AppSettings next)
+    {
+        var previous = _settings;
+        SaveSettings(next);
+        Toasts.Enabled = next.ShowNotifications;
+        if (previous.LaunchAtStartup != next.LaunchAtStartup) ApplyAutoStart();
+        if (previous.ShowStrip != next.ShowStrip) SetShowStrip(next.ShowStrip);
+        if (_router is not null) _router.Hotkeys = HotkeyRules.BuildMap(next);
+        _stripModel.EmptyHint = EmptyHintFor(next);
+        if (previous.Theme != next.Theme) ApplyTheme();
+        if (previous.AccentColor != next.AccentColor)
+        {
+            ApplyAccent();
+            _stripModel.ForgetThumbnails();
+            RefreshStrip();
         }
     }
 
