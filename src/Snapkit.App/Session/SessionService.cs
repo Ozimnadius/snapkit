@@ -11,7 +11,7 @@ using Snapkit.Core.Session;
 
 namespace Snapkit.App.Session;
 
-public enum SessionChangeKind { Added, Updated, Removed, Cleared, SentMarked, Reordered, Restored }
+public enum SessionChangeKind { Added, Updated, Removed, Cleared, Reordered, Restored }
 
 public sealed record SessionChange(SessionChangeKind Kind, Guid? CaptureId);
 
@@ -34,6 +34,9 @@ public sealed class SessionService(SessionStore store)
 
     public event EventHandler<SessionChange>? Changed;
 
+    /// <summary>Полная лента вытеснила самый старый снимок, чтобы освободить место.</summary>
+    public event EventHandler<Guid>? Evicted;
+
     /// <summary>Ошибка фоновой записи на диск (вызывается с фонового потока).</summary>
     public event EventHandler<Exception>? SaveFailed;
 
@@ -46,15 +49,15 @@ public sealed class SessionService(SessionStore store)
     }
 
     /// <summary>
-    /// Новый снимок в конец ленты. Полная лента сначала освобождает место от самого старого
-    /// отправленного снимка; если все неотправленные — бросает (вызывающий проверяет Model.CanMakeRoom).
+    /// Новый снимок в конец ленты. Полная лента сначала освобождает место: самый старый снимок
+    /// удаляется (событие Evicted).
     /// </summary>
     public Guid AddCapture(BitmapSource source, RectI screenBounds, ImmutableList<Annotation> annotations, string snapshotNote)
     {
         MakeRoom();
         var frozen = source.IsFrozen ? source : ImageCodecs.Normalize(source);
         var capture = new Capture(Guid.NewGuid(), frozen.PixelWidth, frozen.PixelHeight, screenBounds,
-            annotations, snapshotNote, IsSent: false, DateTimeOffset.Now);
+            annotations, snapshotNote, DateTimeOffset.Now);
         _sources[capture.Id] = frozen;
         Model.Add(capture);
         Enqueue(() => store.WriteSourceImage(capture.Id, ImageCodecs.EncodePng(frozen)));
@@ -75,8 +78,7 @@ public sealed class SessionService(SessionStore store)
     {
         var frozen = source.IsFrozen ? source : ImageCodecs.Normalize(source);
         _sources[updated.Id] = frozen;
-        // Картинка другая — снимок снова нужно отправить, даже если разметка та же
-        Model.Update(updated with { IsSent = false });
+        Model.Update(updated);
         Enqueue(() => store.WriteSourceImage(updated.Id, ImageCodecs.EncodePng(frozen)));
         Persist();
         Raise(SessionChangeKind.Updated, updated.Id);
@@ -97,10 +99,10 @@ public sealed class SessionService(SessionStore store)
         return new RemovedCapture(capture, source, index);
     }
 
-    /// <summary>«Вернуть»: снимок на прежнее место с прежней отметкой. false — места нет.</summary>
+    /// <summary>«Вернуть»: снимок на прежнее место; полная лента вытесняет самый старый. false — снимок уже на ленте.</summary>
     public bool Restore(RemovedCapture removed)
     {
-        if (Model.Captures.Any(c => c.Id == removed.Capture.Id) || !Model.CanMakeRoom) return false;
+        if (Model.Captures.Any(c => c.Id == removed.Capture.Id)) return false;
         MakeRoom();
         _sources[removed.Capture.Id] = removed.Source;
         Model.Insert(removed.Index, removed.Capture);
@@ -121,16 +123,16 @@ public sealed class SessionService(SessionStore store)
         Raise(SessionChangeKind.Reordered, id);
     }
 
-    // Полная лента: вытеснить самый старый отправленный снимок (бросает, если вытеснять нечего)
+    // Полная лента: вытеснить самый старый снимок и сообщить об этом
     private void MakeRoom()
     {
         if (!Model.IsFull) return;
-        var evicted = Model.EvictOldestSent()
-                      ?? throw new InvalidOperationException($"В ленте {SessionModel.MaxCaptures} неотправленных снимков.");
+        var evicted = Model.EvictOldest()!;
         _sources.Remove(evicted.Id);
-        Log.Info("Лента полна — вытеснен самый старый отправленный снимок");
+        Log.Info("Лента полна — вытеснен самый старый снимок");
         Persist();
         Raise(SessionChangeKind.Removed, evicted.Id);
+        Evicted?.Invoke(this, evicted.Id);
     }
 
     private static readonly BitmapSource EmptySource = CreateEmptySource();
@@ -140,20 +142,6 @@ public sealed class SessionService(SessionStore store)
         var image = BitmapSource.Create(1, 1, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, new byte[4], 4);
         image.Freeze();
         return image;
-    }
-
-    public void MarkSent(IEnumerable<Guid> ids)
-    {
-        Model.MarkSent(ids);
-        Persist();
-        Raise(SessionChangeKind.SentMarked, null);
-    }
-
-    public void MarkAllUnsent()
-    {
-        Model.MarkAllUnsent();
-        Persist();
-        Raise(SessionChangeKind.SentMarked, null);
     }
 
     /// <summary>Очистить ленту в памяти и на диске.</summary>

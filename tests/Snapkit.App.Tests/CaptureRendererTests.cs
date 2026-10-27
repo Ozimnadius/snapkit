@@ -18,7 +18,7 @@ public class CaptureRendererTests
     }
 
     private static Capture CaptureWith(int w, int h, params Annotation[] annotations) => new(
-        Guid.NewGuid(), w, h, new RectI(0, 0, w, h), [.. annotations], "", false, DateTimeOffset.UnixEpoch);
+        Guid.NewGuid(), w, h, new RectI(0, 0, w, h), [.. annotations], "", DateTimeOffset.UnixEpoch);
 
     private static Annotation Box(string? note, PointD a, PointD b) => new(
         Guid.NewGuid(), AnnotationKind.Rectangle, [a, b], "#E53935", 4, null, note);

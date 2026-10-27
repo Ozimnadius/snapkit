@@ -47,19 +47,9 @@ public sealed partial class CaptureController(SessionService session, Action hid
     /// </summary>
     public event EventHandler<Guid>? CaptureDone;
 
-    /// <summary>Снимок не начат: в ленте нет места — все снимки неотправленные.</summary>
-    public event EventHandler? StripFull;
-
     public void StartNewCapture()
     {
         if (IsOpen) return;
-        // Полная лента освобождает место от старого отправленного снимка при «Готово»; если все неотправленные — некуда
-        if (!session.Model.CanMakeRoom)
-        {
-            StripFull?.Invoke(this, EventArgs.Empty);
-            return;
-        }
-
         _previousForeground = Foreground.Current;
         List<(MonitorInfo Monitor, BitmapSource Frame)> frames;
         try
@@ -138,7 +128,7 @@ public sealed partial class CaptureController(SessionService session, Action hid
         window.Show();
         window.PresetRegion(local);
 
-        // Буква — та, которую снимок получит, если после правки снова станет неотправленным
+        // Буква — место снимка на ленте
         var letters = CaptureLetters.Assign(session.Model.Captures);
         // Редактору — настоящее место снимка, а не рамка окна: рамка не выходит за монитор, и картинка
         // больше экрана сдвинулась бы к его углу, а разметка встала бы не туда

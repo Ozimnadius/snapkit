@@ -14,11 +14,11 @@ public static class ClipboardRepublish
     /// буквы, но пакет ленты переиздаётся, только если в буфере сейчас пакет ленты: «Копировать снимок»,
     /// черновик из редактора и то, что пользователь скопировал сам, не затираются.
     /// </summary>
-    public static ClipboardAction After(SessionChangeKind kind, bool hasCaptureId, bool hasUnsent, bool stripPackageInClipboard)
+    public static ClipboardAction After(SessionChangeKind kind, bool hasCaptureId, bool hasCaptures, bool stripPackageInClipboard)
         => kind switch
         {
             SessionChangeKind.Removed or SessionChangeKind.Reordered or SessionChangeKind.Restored
-                when hasUnsent && stripPackageInClipboard => ClipboardAction.Package,
+                when hasCaptures && stripPackageInClipboard => ClipboardAction.Package,
             _ => ClipboardAction.None,
         };
 }

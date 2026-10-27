@@ -28,14 +28,13 @@ public sealed class SessionServiceTests : IDisposable
         Guid.NewGuid(), AnnotationKind.Rectangle, [new PointD(1, 1), new PointD(5, 5)], "#E53935", 4, null, note);
 
     [Fact]
-    public void Restore_PutsBackAtIndexWithSentFlag() => StaRunner.Run(() =>
+    public void Restore_PutsBackAtIndex() => StaRunner.Run(() =>
     {
         var service = new SessionService(new SessionStore(_dir));
         var a = service.AddCapture(Image(10, 10), new RectI(0, 0, 10, 10), [], "");
         var source = Image(20, 10);
         var b = service.AddCapture(source, new RectI(0, 0, 20, 10), [], "");
         var c = service.AddCapture(Image(10, 10), new RectI(0, 0, 10, 10), [], "");
-        service.MarkSent([b]);
 
         var removed = service.Remove(b);
         Assert.NotNull(removed);
@@ -43,42 +42,46 @@ public sealed class SessionServiceTests : IDisposable
         service.FlushAsync().Wait();
 
         Assert.Equal([a, b, c], service.Model.Captures.Select(x => x.Id));
-        Assert.True(service.Model.Captures[1].IsSent);
         Assert.Same(source, service.GetSource(b));
     });
 
     [Fact]
-    public void Restore_WhenNoRoom_ReturnsFalse() => StaRunner.Run(() =>
+    public void Restore_WhenFull_EvictsOldest() => StaRunner.Run(() =>
     {
+        // Удалили снимок, сняли новый — лента снова полная; «Вернуть» всё равно возвращает, уходит самый старый
         var service = new SessionService(new SessionStore(_dir));
         var ids = Enumerable.Range(0, SessionModel.MaxCaptures)
             .Select(_ => service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "")).ToList();
         var removed = service.Remove(ids[3])!;
         service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
 
-        Assert.False(service.Restore(removed));
+        Assert.True(service.Restore(removed));
         Assert.Equal(SessionModel.MaxCaptures, service.Model.Captures.Count);
-        Assert.DoesNotContain(service.Model.Captures, x => x.Id == ids[3]);
+        Assert.Contains(service.Model.Captures, x => x.Id == ids[3]);
+        Assert.DoesNotContain(service.Model.Captures, x => x.Id == ids[0]);
         service.FlushAsync().Wait();
     });
 
     [Fact]
-    public void AddCapture_WhenFull_EvictsOldestSent() => StaRunner.Run(() =>
+    public void AddCapture_WhenFull_EvictsOldest() => StaRunner.Run(() =>
     {
+        // Полная лента: новый снимок вытесняет самый старый (по времени снимка, а не по месту), об этом сообщается
         var service = new SessionService(new SessionStore(_dir));
         var ids = Enumerable.Range(0, SessionModel.MaxCaptures)
             .Select(_ => service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "")).ToList();
-        service.MarkSent([ids[10], ids[3]]);
+        service.MoveBefore(ids[0], SessionModel.MaxCaptures); // самый старый — в конце ленты
         var changes = new List<SessionChange>();
         service.Changed += (_, change) => changes.Add(change);
+        Guid? evicted = null;
+        service.Evicted += (_, id) => evicted = id;
 
         var added = service.AddCapture(Image(4, 4), new RectI(0, 0, 4, 4), [], "");
         service.FlushAsync().Wait();
 
         Assert.Equal(SessionModel.MaxCaptures, service.Model.Captures.Count);
-        Assert.DoesNotContain(service.Model.Captures, x => x.Id == ids[3]);
-        Assert.Contains(service.Model.Captures, x => x.Id == ids[10]);
-        Assert.Equal([new SessionChange(SessionChangeKind.Removed, ids[3]), new SessionChange(SessionChangeKind.Added, added)], changes);
+        Assert.DoesNotContain(service.Model.Captures, x => x.Id == ids[0]);
+        Assert.Equal(ids[0], evicted);
+        Assert.Equal([new SessionChange(SessionChangeKind.Removed, ids[0]), new SessionChange(SessionChangeKind.Added, added)], changes);
     });
 
     [Fact]
@@ -155,20 +158,6 @@ public sealed class SessionServiceTests : IDisposable
     });
 
     [Fact]
-    public void UpdateCaptureImage_SentCapture_BecomesUnsent() => StaRunner.Run(() =>
-    {
-        // Отправленный снимок обрезали, разметку не трогали: в чат должна уйти новая картинка
-        var service = new SessionService(new SessionStore(_dir));
-        var id = service.AddCapture(Image(100, 80), new RectI(10, 20, 100, 80), [], "");
-        service.MarkSent([id]);
-
-        service.UpdateCaptureImage(service.Model.Captures.Single() with { PixelWidth = 40, PixelHeight = 30 }, Image(40, 30));
-        service.FlushAsync().Wait();
-
-        Assert.False(service.Model.Captures.Single().IsSent);
-    });
-
-    [Fact]
     public void UpdateCaptureImage_RaisesUpdated() => StaRunner.Run(() =>
     {
         var service = new SessionService(new SessionStore(_dir));
@@ -203,7 +192,7 @@ public sealed class SessionServiceTests : IDisposable
         var good = new SessionService(store);
         var keptId = good.AddCapture(Image(10, 10), new RectI(0, 0, 10, 10), [], "");
         good.FlushAsync().Wait();
-        var broken = new Capture(Guid.NewGuid(), 10, 10, new RectI(0, 0, 10, 10), [], "", false, DateTimeOffset.UnixEpoch);
+        var broken = new Capture(Guid.NewGuid(), 10, 10, new RectI(0, 0, 10, 10), [], "", DateTimeOffset.UnixEpoch);
         store.WriteSourceImage(broken.Id, [1, 2, 3]); // не PNG
         store.Save([.. store.Load(), broken]);
 
@@ -268,18 +257,5 @@ public sealed class SessionServiceTests : IDisposable
         Assert.Empty(service.Model.Captures);
         Assert.False(File.Exists(Path.Combine(_dir, "session.json")));
         Assert.Empty(Directory.GetFiles(_dir, "*.png"));
-    });
-
-    [Fact]
-    public void MarkSent_RaisesSentMarked() => StaRunner.Run(() =>
-    {
-        var service = new SessionService(new SessionStore(_dir));
-        var id = service.AddCapture(Image(10, 10), new RectI(0, 0, 10, 10), [], "");
-        SessionChange? last = null;
-        service.Changed += (_, c) => last = c;
-        service.MarkSent([id]);
-        Assert.True(service.Model.Captures[0].IsSent);
-        Assert.Equal(SessionChangeKind.SentMarked, last?.Kind);
-        service.FlushAsync().Wait();
     });
 }

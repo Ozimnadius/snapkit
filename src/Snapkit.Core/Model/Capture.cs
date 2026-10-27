@@ -14,7 +14,6 @@ public sealed record Capture(
     RectI ScreenBounds,
     ImmutableList<Annotation> Annotations,
     string SnapshotNote,
-    bool IsSent,
     DateTimeOffset CreatedAt)
 {
     public bool HasSnapshotNote => !string.IsNullOrWhiteSpace(SnapshotNote);

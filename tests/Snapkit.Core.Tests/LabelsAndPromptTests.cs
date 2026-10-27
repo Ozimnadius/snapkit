@@ -9,24 +9,24 @@ public class LabelsAndPromptTests
         Guid.NewGuid(), AnnotationKind.Rectangle, [new PointD(0, 0), new PointD(10, 10)],
         "#E53935", 4, null, note);
 
-    private static Capture Cap(bool sent, params Annotation[] annotations) => new(
-        Guid.NewGuid(), 100, 50, new RectI(0, 0, 100, 50), [.. annotations], "", sent,
+    private static Capture Cap(params Annotation[] annotations) => new(
+        Guid.NewGuid(), 100, 50, new RectI(0, 0, 100, 50), [.. annotations], "",
         DateTimeOffset.UnixEpoch);
 
     [Fact]
     public void Letters_ArePositionsInStrip()
     {
-        // Буква закреплена за местом на ленте: отправленный снимок сверху не сдвигает буквы остальных
-        var sent = Cap(true); var first = Cap(false); var second = Cap(false);
-        var letters = CaptureLetters.Assign([sent, first, second]);
-        Assert.Equal(('A', 'B', 'C'), (letters[sent.Id], letters[first.Id], letters[second.Id]));
+        // Буква — место на ленте сверху вниз
+        var first = Cap(); var second = Cap(); var third = Cap();
+        var letters = CaptureLetters.Assign([first, second, third]);
+        Assert.Equal(('A', 'B', 'C'), (letters[first.Id], letters[second.Id], letters[third.Id]));
     }
 
     [Fact]
     public void NoteNumbers_CountOnlyAnnotationsWithNotes()
     {
         var a = Rect("x"); var b = Rect(null); var c = Rect("y");
-        var numbered = NoteNumbers.Number(Cap(false, a, b, c));
+        var numbered = NoteNumbers.Number(Cap(a, b, c));
         Assert.Equal(new[] { (a, 1), (c, 2) }, numbered);
     }
 
@@ -37,9 +37,9 @@ public class LabelsAndPromptTests
     [Fact]
     public void Prompt_FormatsCapturesAndNotes()
     {
-        var capA = Cap(false, Rect("У Макса значок VK в админке"), Rect("Поле Telegram шире остальных"))
+        var capA = Cap(Rect("У Макса значок VK в админке"), Rect("Поле Telegram шире остальных"))
             with { SnapshotNote = "страница настроек соцсетей" };
-        var capB = Cap(false, Rect("Кнопка «Сохранить» не активна"));
+        var capB = Cap(Rect("Кнопка «Сохранить» не активна"));
         var text = PromptBuilder.Build([new('A', capA), new('B', capB)]);
         Assert.Equal(
             "Снимок A\nA1 — У Макса значок VK в админке\nA2 — Поле Telegram шире остальных\n" +
@@ -50,41 +50,34 @@ public class LabelsAndPromptTests
     [Fact]
     public void Prompt_SkipsCapturesWithoutNotes_KeepsLetters()
     {
-        var text = PromptBuilder.Build([new('A', Cap(false, Rect(null))), new('B', Cap(false, Rect("есть")))]);
+        var text = PromptBuilder.Build([new('A', Cap(Rect(null))), new('B', Cap(Rect("есть")))]);
         Assert.Equal("Снимок B\nB1 — есть", text);
     }
 
     [Fact]
     public void Prompt_EmptyWhenNoNotes()
-        => Assert.Equal("", PromptBuilder.Build([new('A', Cap(false, Rect(null)))]));
+        => Assert.Equal("", PromptBuilder.Build([new('A', Cap(Rect(null)))]));
 
     [Fact]
     public void Prompt_IndentsMultilineNote()
     {
-        var text = PromptBuilder.Build([new('A', Cap(false, Rect("строка 1\nстрока 2")))]);
+        var text = PromptBuilder.Build([new('A', Cap(Rect("строка 1\nстрока 2")))]);
         Assert.Equal("Снимок A\nA1 — строка 1\n     строка 2", text); // отступ = длина "A1 — "
     }
 
     [Fact]
     public void Prompt_IndentsMultilineSnapshotNoteByTwoSpaces()
     {
-        var cap = Cap(false) with { SnapshotNote = "первая\nвторая" };
+        var cap = Cap() with { SnapshotNote = "первая\nвторая" };
         var text = PromptBuilder.Build([new('A', cap)]);
         Assert.Equal("Снимок A\nКомментарий к снимку: первая\n  вторая", text);
     }
 
     [Fact]
-    public void Package_IsUnsentInStripOrderWithLetters()
-    {
-        var s = Cap(true); var u1 = Cap(false); var u2 = Cap(false);
-        Assert.Equal(new LetteredCapture[] { new('A', u1), new('C', u2) }, PackageSelector.Select([u1, s, u2]));
-    }
-
-    [Fact]
     public void NoteCount_IncludesSnapshotNote()
-        => Assert.Equal(2, (Cap(false, Rect("x"), Rect(null)) with { SnapshotNote = "общая" }).NoteCount);
+        => Assert.Equal(2, (Cap(Rect("x"), Rect(null)) with { SnapshotNote = "общая" }).NoteCount);
 
     [Fact]
     public void NoteCount_IgnoresBlankSnapshotNote()
-        => Assert.Equal(1, (Cap(false, Rect("x")) with { SnapshotNote = "   " }).NoteCount);
+        => Assert.Equal(1, (Cap(Rect("x")) with { SnapshotNote = "   " }).NoteCount);
 }

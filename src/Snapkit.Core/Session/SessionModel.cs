@@ -8,12 +8,11 @@ namespace Snapkit.Core.Session;
 public sealed class SessionModel
 {
     public const int MaxCaptures = 20;
-    public const int SoftWarningUnsent = 10;
+    public const int SoftWarningCount = 10;
 
     private readonly List<Capture> _captures = [];
 
     public IReadOnlyList<Capture> Captures => _captures;
-    public int UnsentCount => _captures.Count(c => !c.IsSent);
     public bool IsFull => _captures.Count >= MaxCaptures;
 
     public event EventHandler? Changed;
@@ -25,17 +24,12 @@ public sealed class SessionModel
         RaiseChanged();
     }
 
-    /// <summary>
-    /// Заменяет снимок с тем же Id. Если изменилась разметка или общая заметка,
-    /// снимок снова становится неотправленным. Неизвестный Id (снимок уже удалён) игнорируется.
-    /// </summary>
+    /// <summary>Заменяет снимок с тем же Id. Неизвестный Id (снимок уже удалён) игнорируется.</summary>
     public void Update(Capture updated)
     {
         var index = _captures.FindIndex(c => c.Id == updated.Id);
         if (index < 0) return;
-        var old = _captures[index];
-        var edited = !ReferenceEquals(old.Annotations, updated.Annotations) || old.SnapshotNote != updated.SnapshotNote;
-        _captures[index] = edited ? updated with { IsSent = false } : updated;
+        _captures[index] = updated;
         RaiseChanged();
     }
 
@@ -54,25 +48,6 @@ public sealed class SessionModel
         _captures.Clear();
         RaiseChanged();
     }
-
-    public void MarkSent(IEnumerable<Guid> ids)
-    {
-        var set = ids.ToHashSet();
-        for (var i = 0; i < _captures.Count; i++)
-        {
-            if (set.Contains(_captures[i].Id)) _captures[i] = _captures[i] with { IsSent = true };
-        }
-        RaiseChanged();
-    }
-
-    public void MarkAllUnsent()
-    {
-        for (var i = 0; i < _captures.Count; i++) _captures[i] = _captures[i] with { IsSent = false };
-        RaiseChanged();
-    }
-
-    /// <summary>Есть место для нового снимка: лента не полна или в ней есть отправленный, которого можно вытеснить.</summary>
-    public bool CanMakeRoom => !IsFull || _captures.Any(c => c.IsSent);
 
     /// <summary>Поставить снимок перед карточкой с номером slot в нынешнем порядке (slot == Count — в конец).</summary>
     public void MoveBefore(Guid id, int slot)
@@ -97,10 +72,10 @@ public sealed class SessionModel
         RaiseChanged();
     }
 
-    /// <summary>Удалить отправленный снимок с самым ранним CreatedAt; null — отправленных нет.</summary>
-    public Capture? EvictOldestSent()
+    /// <summary>Удалить самый старый снимок (самый ранний CreatedAt, где бы он ни стоял); null — лента пуста.</summary>
+    public Capture? EvictOldest()
     {
-        var oldest = _captures.Where(c => c.IsSent).MinBy(c => c.CreatedAt);
+        var oldest = _captures.MinBy(c => c.CreatedAt);
         return oldest is null ? null : Remove(oldest.Id);
     }
 

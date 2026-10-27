@@ -8,7 +8,7 @@ namespace Snapkit.App.Files;
 /// <summary>Снимки файлами: для перетаскивания в другие окна и для сохранения на диск.</summary>
 public static class CaptureFiles
 {
-    /// <summary>Имя файла перетаскиваемого снимка: «Снимок A.png» или «Снимок.png» у отправленного.</summary>
+    /// <summary>Имя файла перетаскиваемого снимка: «Снимок A.png»; без буквы — «Снимок.png».</summary>
     public static string DragFileName(char? letter) => letter is { } l ? $"Снимок {l}.png" : "Снимок.png";
 
     /// <summary>PNG для перетаскивания в своей подпапке dragRoot\&lt;guid&gt;\ — имена не пересекаются; возвращает путь.</summary>

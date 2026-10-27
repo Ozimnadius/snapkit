@@ -16,7 +16,8 @@ public sealed class SessionStoreTests : IDisposable
     [Fact]
     public void Stage1Json_LoadsWithDefaults()
     {
-        // Лента, записанная этапом 1: у фигуры ещё нет заливки, стиля линии и сдвига кружка
+        // Лента, записанная этапом 1: у фигуры ещё нет заливки, стиля линии и сдвига кружка;
+        // поле isSent из версий до 0.3.1 при чтении пропускается
         Directory.CreateDirectory(_dir);
         var captureId = Guid.NewGuid();
         var shapeId = Guid.NewGuid();
@@ -61,7 +62,7 @@ public sealed class SessionStoreTests : IDisposable
             Fill = FillMode.Blur, FillColor = "#43A047", LineStyle = LineStyle.Dashed, PinOffset = new PointD(5, -3),
         };
         var curved = Shape(AnnotationKind.CurvedArrow, points: [new(0, 0), new(50, 40), new(100, 0)]);
-        var original = Cap(false, ellipse, curved);
+        var original = Cap(ellipse, curved);
         store.WriteSourceImage(original.Id, Png1x1);
         store.Save([original]);
 
@@ -76,7 +77,7 @@ public sealed class SessionStoreTests : IDisposable
     public void SaveThenLoad_RoundTrips()
     {
         var store = new SessionStore(_dir);
-        var original = Cap(sent: true,
+        var original = Cap(
             Shape(AnnotationKind.Rectangle, note: "рамка", points: [new(1, 2), new(30, 40)]),
             Shape(AnnotationKind.Arrow, points: [new(5, 5), new(50, 6)]),
             Shape(AnnotationKind.Text, text: "надпись", points: [new(7, 8)]),
@@ -91,7 +92,6 @@ public sealed class SessionStoreTests : IDisposable
         Assert.Equal(original.PixelHeight, loaded.PixelHeight);
         Assert.Equal(original.ScreenBounds, loaded.ScreenBounds);
         Assert.Equal(original.SnapshotNote, loaded.SnapshotNote);
-        Assert.Equal(original.IsSent, loaded.IsSent);
         Assert.Equal(original.CreatedAt, loaded.CreatedAt);
         Assert.Equal(original.Annotations.Count, loaded.Annotations.Count);
         for (var i = 0; i < original.Annotations.Count; i++)

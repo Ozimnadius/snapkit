@@ -8,7 +8,7 @@ using Snapkit.Core.Session;
 
 namespace Snapkit.App.Strip;
 
-/// <summary>Состояние ленты: карточки, счётчик неотправленных, подсказки.</summary>
+/// <summary>Состояние ленты: карточки, счётчик снимков, подсказки.</summary>
 public sealed class StripViewModel : ObservableObject
 {
     /// <summary>Полная высота карточки и видимая полоса у карточек под стопкой (компактно, как у Snapik).</summary>
@@ -16,9 +16,9 @@ public sealed class StripViewModel : ObservableObject
     public const double StripeHeight = 26;
 
     // Миниатюра перерисовывается, только если изменился снимок или его буква.
-    private Dictionary<Guid, (Capture Capture, char? Letter, BitmapSource Thumb)> _thumbs = [];
+    private Dictionary<Guid, (Capture Capture, char Letter, BitmapSource Thumb)> _thumbs = [];
 
-    private int _unsentCount;
+    private int _captureCount;
     private bool _isEmpty = true;
     private bool _showSoftWarning;
     private bool _isTopmost = true;
@@ -27,7 +27,8 @@ public sealed class StripViewModel : ObservableObject
 
     public ObservableCollection<CaptureCardViewModel> Cards { get; } = [];
 
-    public int UnsentCount { get => _unsentCount; private set => Set(ref _unsentCount, value); }
+    /// <summary>Сколько снимков на ленте — число рядом с «Snapkit» и в капсуле.</summary>
+    public int CaptureCount { get => _captureCount; private set => Set(ref _captureCount, value); }
     public bool IsEmpty { get => _isEmpty; private set => Set(ref _isEmpty, value); }
     public bool ShowSoftWarning { get => _showSoftWarning; private set => Set(ref _showSoftWarning, value); }
     public string EmptyHint { get => _emptyHint; set => Set(ref _emptyHint, value); }
@@ -37,18 +38,17 @@ public sealed class StripViewModel : ObservableObject
     /// <summary>Настройка «Показывать ленту» — для галочки в меню «…».</summary>
     public bool ShowStripSetting { get => _showStripSetting; set => Set(ref _showStripSetting, value); }
 
-    public string SoftWarningText { get; } = $"Чаты обычно принимают до {SessionModel.SoftWarningUnsent} картинок за раз";
+    public string SoftWarningText { get; } = $"Чаты обычно принимают до {SessionModel.SoftWarningCount} картинок за раз";
 
-    public void Refresh(IReadOnlyList<Capture> captures, Func<Capture, char?, BitmapSource> renderThumbnail)
+    public void Refresh(IReadOnlyList<Capture> captures, Func<Capture, char, BitmapSource> renderThumbnail)
     {
         var letters = CaptureLetters.Assign(captures);
-        var thumbs = new Dictionary<Guid, (Capture, char?, BitmapSource)>();
+        var thumbs = new Dictionary<Guid, (Capture, char, BitmapSource)>();
         Cards.Clear();
         for (var i = 0; i < captures.Count; i++)
         {
             var capture = captures[i];
-            // У отправленного на значке галочка, а не буква
-            char? letter = capture.IsSent ? null : letters[capture.Id];
+            var letter = letters[capture.Id];
             var thumb = _thumbs.TryGetValue(capture.Id, out var cached)
                         && ReferenceEquals(cached.Capture, capture) && cached.Letter == letter
                 ? cached.Thumb
@@ -56,13 +56,12 @@ public sealed class StripViewModel : ObservableObject
             thumbs[capture.Id] = (capture, letter, thumb);
 
             var margin = new Thickness(0, i == 0 ? 0 : -(CardHeight - StripeHeight), 0, 0);
-            Cards.Add(new CaptureCardViewModel(capture.Id, thumb, letter?.ToString(), capture.IsSent, capture.NoteCount, margin));
+            Cards.Add(new CaptureCardViewModel(capture.Id, thumb, letter.ToString(), capture.NoteCount, margin));
         }
         _thumbs = thumbs;
 
-        var unsent = captures.Count(c => !c.IsSent);
-        UnsentCount = unsent;
+        CaptureCount = captures.Count;
         IsEmpty = captures.Count == 0;
-        ShowSoftWarning = unsent >= SessionModel.SoftWarningUnsent;
+        ShowSoftWarning = captures.Count >= SessionModel.SoftWarningCount;
     }
 }

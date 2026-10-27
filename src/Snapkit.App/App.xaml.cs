@@ -107,6 +107,7 @@ public partial class App : Application
             Log.Error("запись ленты на диск", ex);
             Toasts.Error("Не удалось сохранить ленту на диск. Подробности — в журнале");
         };
+        _session.Evicted += (_, _) => Toasts.Show(CaptureFeedback.Evicted);
         _clipboard = new ClipboardService();
         _publisher = new PackagePublisher(_session, _clipboard);
         _session.Changed += (_, change) =>
@@ -140,11 +141,6 @@ public partial class App : Application
         {
             RunClipboard(() => _publisher.PublishCaptureAsync(id));
             Toasts.Show(CaptureFeedback.Copied);
-        };
-        _capture.StripFull += (_, _) =>
-        {
-            Toasts.Show(CaptureFeedback.StripFull);
-            ShowStrip();
         };
         _stripModel.ShowStripSetting = _settings.ShowStrip;
         WireStrip();
@@ -379,7 +375,7 @@ public partial class App : Application
         }
     }
 
-    /// <summary>«Сохранить всё…»: папка со всей лентой — A.png, B.png… и prompt.md; отметки «отправлен» не меняются.</summary>
+    /// <summary>«Сохранить всё…»: папка со всей лентой — A.png, B.png… и prompt.md.</summary>
     private void SaveAll()
     {
         var package = PackageSelector.All(_session.Model.Captures);
@@ -491,7 +487,7 @@ public partial class App : Application
     /// </summary>
     private void OnSessionChangedForClipboard(SessionChange change)
     {
-        var action = ClipboardRepublish.After(change.Kind, change.CaptureId is not null, _session.Model.UnsentCount > 0,
+        var action = ClipboardRepublish.After(change.Kind, change.CaptureId is not null, _session.Model.Captures.Count > 0,
             stripPackageInClipboard: IsPackageCurrent() && _publisher.IsStripPackage);
         if (action == ClipboardAction.Package) RunClipboard(_publisher.PublishPackageAsync);
     }
@@ -617,17 +613,17 @@ public partial class App : Application
         _strip.Top = area.Top + 80;
     }
 
-    /// <summary>Подтверждение перед удалением снимков: спрашиваем, только если есть неотправленные.</summary>
+    /// <summary>Подтверждение перед удалением снимков: спрашиваем, если лента не пустая.</summary>
     private bool ConfirmClear()
     {
-        if (_session.Model.UnsentCount == 0) return true;
-        return MessageBox.Show(_strip, "Удалить снимки сессии?\nНеотправленные снимки будут потеряны.", "Snapkit",
+        if (_session.Model.Captures.Count == 0) return true;
+        return MessageBox.Show(_strip, "Удалить все снимки ленты?", "Snapkit",
             MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
     }
 
     private void ExitApp()
     {
-        if (_session.Model.UnsentCount > 0
+        if (_session.Model.Captures.Count > 0
             && MessageBox.Show(_strip, "Выйти из Snapkit?\nСнимки ленты будут удалены.", "Snapkit",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
         {
@@ -639,12 +635,6 @@ public partial class App : Application
 
     private void ImportImageFromClipboard()
     {
-        if (!_session.Model.CanMakeRoom)
-        {
-            Toasts.Show(CaptureFeedback.StripFull);
-            return;
-        }
-
         BitmapSource? image;
         try
         {
@@ -677,10 +667,9 @@ public partial class App : Application
             return;
         }
         var added = 0;
-        foreach (var file in files)
+        // Больше, чем помещается на ленту, брать незачем: первые картинки вытеснили бы следующие
+        foreach (var file in files.Take(SessionModel.MaxCaptures))
         {
-            // Места нет — оставшиеся файлы пропускаются
-            if (!_session.Model.CanMakeRoom) break;
             try
             {
                 AddImportedImage(ImageCodecs.DecodeImage(File.ReadAllBytes(file)));

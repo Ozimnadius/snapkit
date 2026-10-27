@@ -53,7 +53,7 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
 
     /// <summary>
     /// Вставить в активное окно только текст (заметки после переноса карточки): тот же путь, что
-    /// и у пачки, — проверка окна, Esc, повтор Ctrl+V, если текст не забран. Отметки не меняются.
+    /// и у пачки, — проверка окна, Esc, повтор Ctrl+V, если текст не забран.
     /// </summary>
     public Task<PasteOutcome> PasteTextAsync(string text, int notesCount)
         => RunAsync(() => new PastePlan([], text, [], notesCount, FromStrip: false), "текста", putBackPackage: false);
@@ -146,7 +146,6 @@ public sealed class PasteCoordinator(SessionService session, ClipboardService cl
             await Task.Delay(confirmed ? VerifiedPause : UnverifiedPause);
         }
 
-        if (plan.CaptureIds.Count > 0) session.MarkSent(plan.CaptureIds);
         if (plan.FromStrip && clearAfterPaste()) session.ClearAll();
         return new PasteOutcome(verified ? PasteStatus.CompletedVerified : PasteStatus.CompletedUnverified, images, notes);
     }

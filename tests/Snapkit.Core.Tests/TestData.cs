@@ -11,8 +11,8 @@ internal static class TestData
         points.Length > 0 ? [.. points] : [new PointD(0, 0), new PointD(10, 10)],
         "#E53935", 4, text, note);
 
-    public static Capture Cap(bool sent = false, params Annotation[] annotations) => new(
-        Guid.NewGuid(), 100, 50, new RectI(10, 20, 100, 50), [.. annotations], "", sent,
+    public static Capture Cap(params Annotation[] annotations) => new(
+        Guid.NewGuid(), 100, 50, new RectI(10, 20, 100, 50), [.. annotations], "",
         DateTimeOffset.UnixEpoch);
 
     /// <summary>Минимальный настоящий PNG 1×1.</summary>

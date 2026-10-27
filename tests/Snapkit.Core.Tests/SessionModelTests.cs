@@ -29,34 +29,13 @@ public class SessionModelTests
     }
 
     [Fact]
-    public void Update_ChangedAnnotationsOnSentCapture_MakesItUnsent()
+    public void Update_ReplacesCapture()
     {
         var model = new SessionModel();
-        var c = Cap(sent: true);
-        model.Add(c);
-        model.Update(c with { Annotations = c.Annotations.Add(Shape(AnnotationKind.Rectangle)) });
-        Assert.False(model.Captures[0].IsSent);
-        Assert.Single(model.Captures[0].Annotations);
-    }
-
-    [Fact]
-    public void Update_ChangedSnapshotNoteOnSentCapture_MakesItUnsent()
-    {
-        var model = new SessionModel();
-        var c = Cap(sent: true);
+        var c = Cap();
         model.Add(c);
         model.Update(c with { SnapshotNote = "новая" });
-        Assert.False(model.Captures[0].IsSent);
-    }
-
-    [Fact]
-    public void Update_SameAnnotationsAndNote_KeepsSent()
-    {
-        var model = new SessionModel();
-        var c = Cap(sent: true);
-        model.Add(c);
-        model.Update(c with { });
-        Assert.True(model.Captures[0].IsSent);
+        Assert.Equal("новая", model.Captures[0].SnapshotNote);
     }
 
     [Fact]
@@ -66,18 +45,6 @@ public class SessionModelTests
         model.Add(Cap());
         model.Update(Cap());
         Assert.Single(model.Captures);
-    }
-
-    [Fact]
-    public void MarkSent_And_MarkAllUnsent_UpdateUnsentCount()
-    {
-        var model = new SessionModel();
-        var a = Cap(); var b = Cap(); var c = Cap();
-        model.Add(a); model.Add(b); model.Add(c);
-        model.MarkSent([a.Id, c.Id]);
-        Assert.Equal(1, model.UnsentCount);
-        model.MarkAllUnsent();
-        Assert.Equal(3, model.UnsentCount);
     }
 
     [Fact]
@@ -111,10 +78,9 @@ public class SessionModelTests
         model.Add(Cap());
         model.Clear();
         Assert.Empty(model.Captures);
-        Assert.Equal(0, model.UnsentCount);
     }
 
-    // Лента a, b, c — все неотправленные
+    // Лента a, b, c
     private static (SessionModel Model, Capture A, Capture B, Capture C) Strip()
     {
         var model = new SessionModel();
@@ -126,7 +92,7 @@ public class SessionModelTests
     }
 
     private static List<(char, Guid)> Package(SessionModel model)
-        => PackageSelector.Select(model.Captures).Select(p => (p.Letter, p.Capture.Id)).ToList();
+        => PackageSelector.All(model.Captures).Select(p => (p.Letter, p.Capture.Id)).ToList();
 
     [Fact]
     public void MoveBefore_ChangesPackageOrder()
@@ -163,35 +129,20 @@ public class SessionModelTests
     }
 
     [Fact]
-    public void EvictOldestSent_AllUnsent_ReturnsNull()
-    {
-        var model = new SessionModel();
-        for (var i = 0; i < SessionModel.MaxCaptures; i++) model.Add(Cap());
-        Assert.False(model.CanMakeRoom);
-        Assert.Null(model.EvictOldestSent());
-        Assert.Equal(SessionModel.MaxCaptures, model.Captures.Count);
-    }
+    public void EvictOldest_EmptyStrip_ReturnsNull() => Assert.Null(new SessionModel().EvictOldest());
 
     [Fact]
-    public void CanMakeRoom_FullWithSent_IsTrue()
+    public void EvictOldest_TakesEarliestCreated()
     {
         var model = new SessionModel();
-        for (var i = 0; i < SessionModel.MaxCaptures; i++) model.Add(Cap(sent: i == 5));
-        Assert.True(model.CanMakeRoom);
-    }
-
-    [Fact]
-    public void EvictOldestSent_TakesEarliestCreated()
-    {
-        var model = new SessionModel();
-        var a = Cap(sent: true) with { CreatedAt = DateTimeOffset.UnixEpoch.AddMinutes(1) };
-        var b = Cap();
-        var c = Cap(sent: true) with { CreatedAt = DateTimeOffset.UnixEpoch };
+        var a = Cap() with { CreatedAt = DateTimeOffset.UnixEpoch.AddMinutes(1) };
+        var b = Cap() with { CreatedAt = DateTimeOffset.UnixEpoch.AddMinutes(2) };
+        var c = Cap() with { CreatedAt = DateTimeOffset.UnixEpoch };
         model.Add(c);
         model.Add(a);
         model.Add(b);
         model.MoveBefore(c.Id, 3); // самый старый — в конце ленты
-        Assert.Equal(c.Id, model.EvictOldestSent()?.Id);
+        Assert.Equal(c.Id, model.EvictOldest()?.Id);
         Assert.Equal([a.Id, b.Id], model.Captures.Select(x => x.Id));
     }
 }

@@ -24,7 +24,7 @@ public class PackageExportTests
     {
         IReadOnlyList<LetteredCapture> package =
         [
-            new('A', Cap(false, Shape(AnnotationKind.Rectangle, note: "кнопка"))),
+            new('A', Cap(Shape(AnnotationKind.Rectangle, note: "кнопка"))),
             new('B', Cap()),
         ];
         Assert.Equal("![Снимок A](A.png)\n![Снимок B](B.png)\n\n" + PromptBuilder.Build(package),

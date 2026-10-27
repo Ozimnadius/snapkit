@@ -12,7 +12,7 @@ public class ClipboardRepublishTests
     public void NewOrEditedCapture_LeavesClipboardToDoneButton(SessionChangeKind kind)
         // Снимок копирует сама кнопка «Готово» (в том числе без правок) — изменение ленты буфер не трогает
         => Assert.Equal(ClipboardAction.None,
-            ClipboardRepublish.After(kind, hasCaptureId: true, hasUnsent: true, stripPackageInClipboard: true));
+            ClipboardRepublish.After(kind, hasCaptureId: true, hasCaptures: true, stripPackageInClipboard: true));
 
     [Theory]
     [InlineData(SessionChangeKind.Reordered)]
@@ -21,7 +21,7 @@ public class ClipboardRepublishTests
     public void ChangeOfStrip_WhenSingleCaptureOrForeignDataInClipboard_KeepsClipboard(SessionChangeKind kind)
         // В буфере «Копировать снимок», черновик или чужое — Ctrl+V должен вставить именно его
         => Assert.Equal(ClipboardAction.None,
-            ClipboardRepublish.After(kind, hasCaptureId: true, hasUnsent: true, stripPackageInClipboard: false));
+            ClipboardRepublish.After(kind, hasCaptureId: true, hasCaptures: true, stripPackageInClipboard: false));
 
     [Theory]
     [InlineData(SessionChangeKind.Reordered)]
@@ -30,16 +30,16 @@ public class ClipboardRepublishTests
     public void ChangeOfStrip_WhenStripPackageInClipboard_RepublishesPackage(SessionChangeKind kind)
         // В буфере наш пакет ленты — обновляем, чтобы буквы и снимки совпадали с лентой
         => Assert.Equal(ClipboardAction.Package,
-            ClipboardRepublish.After(kind, hasCaptureId: true, hasUnsent: true, stripPackageInClipboard: true));
+            ClipboardRepublish.After(kind, hasCaptureId: true, hasCaptures: true, stripPackageInClipboard: true));
 
     [Fact]
     public void ChangeWithoutCapture_KeepsClipboard()
         => Assert.Equal(ClipboardAction.None,
-            ClipboardRepublish.After(SessionChangeKind.Updated, hasCaptureId: false, hasUnsent: true, stripPackageInClipboard: true));
+            ClipboardRepublish.After(SessionChangeKind.Updated, hasCaptureId: false, hasCaptures: true, stripPackageInClipboard: true));
 
     [Fact]
-    public void NothingUnsent_NoPackage()
+    public void EmptyStrip_NoPackage()
         => Assert.Equal(ClipboardAction.None,
-            ClipboardRepublish.After(SessionChangeKind.Reordered, hasCaptureId: true, hasUnsent: false, stripPackageInClipboard: true));
+            ClipboardRepublish.After(SessionChangeKind.Reordered, hasCaptureId: true, hasCaptures: false, stripPackageInClipboard: true));
 
 }

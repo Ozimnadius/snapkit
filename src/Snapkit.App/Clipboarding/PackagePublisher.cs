@@ -11,8 +11,8 @@ using Snapkit.Core.Session;
 namespace Snapkit.App.Clipboarding;
 
 /// <summary>
-/// Что вставить по Ctrl+V: картинки по порядку, текст комментариев и снимки ленты,
-/// которые после вставки пометить отправленными. FromStrip — это неотправленные снимки ленты.
+/// Что вставить по Ctrl+V: картинки по порядку, текст комментариев и снимки ленты в плане.
+/// FromStrip — пакет всей ленты (после него срабатывает «Очищать ленту после вставки»).
 /// </summary>
 public sealed record PastePlan(IReadOnlyList<BitmapSource> Images, string Text, IReadOnlyList<Guid> CaptureIds, int NotesCount, bool FromStrip)
 {
@@ -22,8 +22,8 @@ public sealed record PastePlan(IReadOnlyList<BitmapSource> Images, string Text, 
 
 /// <summary>
 /// Пакет в буфере обмена: картинка последнего снимка пакета и текст для чата.
-/// Пакетом бывает лента (неотправленные снимки), один снимок из ленты, черновик из редактора
-/// или снимки, которые только что вставили (после вставки пакет возвращается в буфер).
+/// Пакетом бывает вся лента, один снимок из ленты или черновик из редактора; после вставки
+/// пакет возвращается в буфер.
 /// Пока пакет в буфере, Ctrl+V вставляет его целиком — картинки и текст; без перехвата обычная
 /// вставка даст хотя бы картинку (Paint) или текст (Блокнот).
 /// </summary>
@@ -33,8 +33,6 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
     private sealed record StripSource : Source;
     private sealed record SingleSource(Guid CaptureId) : Source;
     private sealed record DraftSource(Capture Capture, BitmapSource Image) : Source;
-    // Снимки ленты, которые только что вставили: они уже отправлены, но Ctrl+V вставит их снова
-    private sealed record PastedSource(IReadOnlyList<Guid> Ids) : Source;
 
     // Что лежит в буфере сейчас; меняется только на UI-потоке
     private Source? _current;
@@ -42,10 +40,9 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
     /// <summary>Есть что вставить по Ctrl+V из последнего скопированного пакета.</summary>
     public bool HasPasteContent => _current switch
     {
-        StripSource => session.Model.UnsentCount > 0,
+        StripSource => session.Model.Captures.Count > 0,
         SingleSource single => session.Model.Captures.Any(c => c.Id == single.CaptureId),
         DraftSource => true,
-        PastedSource pasted => session.Model.Captures.Any(c => pasted.Ids.Contains(c.Id)),
         _ => false,
     };
 
@@ -55,32 +52,26 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
     /// <summary>План вставки для того, что скопировано последним (строится на момент вставки).</summary>
     public PastePlan CreatePastePlan() => _current switch
     {
-        StripSource => Plan(PackageSelector.Select(session.Model.Captures), fromStrip: true),
+        StripSource => Plan(PackageSelector.All(session.Model.Captures), fromStrip: true),
         SingleSource single when session.Model.Captures.FirstOrDefault(c => c.Id == single.CaptureId) is { } capture
             => Plan([new LetteredCapture(CaptureLetters.Assign(session.Model.Captures)[capture.Id], capture)], fromStrip: false),
         DraftSource draft => Plan([new LetteredCapture(CaptureLetters.ForNew(session.Model.Captures.Count, SessionModel.MaxCaptures),
             draft.Capture)], fromStrip: false, draft.Image),
-        PastedSource pasted => Plan(Lettered(pasted.Ids), fromStrip: false),
         _ => PastePlan.Empty,
     };
 
     /// <summary>
     /// После вставки по Ctrl+V вернуть в буфер то, что вставили: следующий Ctrl+V в другом чате снова
-    /// вставит картинки и текст, а не последний шаг вставки. Снимки ленты к этому времени отмечены
-    /// отправленными, поэтому пакет ленты запоминается списком вставленных снимков. В историю буфера
-    /// повтор не пишется — там уже есть первая копия.
+    /// вставит картинки и текст, а не последний шаг вставки. В историю буфера повтор не пишется —
+    /// там уже есть первая копия.
     /// </summary>
     public Task RestoreAfterPasteAsync(PastePlan pasted)
-    {
-        if (_current is null) return Task.CompletedTask;
-        var source = _current is StripSource && pasted.FromStrip ? new PastedSource(pasted.CaptureIds) : _current;
-        return PublishAsync(source, excludeFromHistory: true);
-    }
+        => _current is null ? Task.CompletedTask : PublishAsync(_current, excludeFromHistory: true);
 
-    /// <summary>Пакет ленты — неотправленные снимки.</summary>
+    /// <summary>Пакет всей ленты.</summary>
     public Task PublishPackageAsync() => PublishAsync(new StripSource());
 
-    /// <summary>«Копировать всё»: вся лента, и отправленные тоже — галочки снимаются, Ctrl+V вставит все снимки.</summary>
+    /// <summary>«Копировать всё»: вся лента — Ctrl+V вставит все снимки по порядку.</summary>
     public async Task CopyAllCommandAsync()
     {
         if (session.Model.Captures.Count == 0)
@@ -88,9 +79,8 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
             Toasts.Show("Сначала сделайте снимок.");
             return;
         }
-        if (session.Model.UnsentCount < session.Model.Captures.Count) session.MarkAllUnsent();
         await PublishPackageAsync();
-        var count = RussianPlural.Format(session.Model.UnsentCount, "снимок", "снимка", "снимков");
+        var count = RussianPlural.Format(session.Model.Captures.Count, "снимок", "снимка", "снимков");
         Toasts.Show($"Скопировано: {count}. Нажмите Ctrl+V в чате");
     }
 
@@ -110,7 +100,7 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
     public Task CopyDraftAsync(BitmapSource source, ImmutableList<Annotation> annotations, string snapshotNote)
     {
         var draft = new Capture(Guid.Empty, source.PixelWidth, source.PixelHeight, new RectI(0, 0, source.PixelWidth, source.PixelHeight),
-            annotations, snapshotNote, IsSent: false, DateTimeOffset.Now);
+            annotations, snapshotNote, DateTimeOffset.Now);
         return PublishAsync(new DraftSource(draft, source));
     }
 
@@ -128,16 +118,6 @@ public sealed class PackagePublisher(SessionService session, ClipboardService cl
         await clipboard.PublishAsync(
             new ClipboardPayload(ImageCodecs.EncodePng(last), ImageCodecs.EncodeDib(last), plan.Text.Length == 0 ? null : plan.Text),
             ClipboardKind.Package, excludeFromHistory);
-    }
-
-    // Снимки ленты из списка — в порядке ленты, с буквами их мест; удалённые пропускаются
-    private List<LetteredCapture> Lettered(IReadOnlyList<Guid> ids)
-    {
-        var letters = CaptureLetters.Assign(session.Model.Captures);
-        return session.Model.Captures
-            .Where(c => ids.Contains(c.Id))
-            .Select(c => new LetteredCapture(letters[c.Id], c))
-            .ToList();
     }
 
     private PastePlan Plan(IReadOnlyList<LetteredCapture> package, bool fromStrip, BitmapSource? draftImage = null)

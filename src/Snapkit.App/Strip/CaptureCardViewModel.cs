@@ -5,14 +5,13 @@ namespace Snapkit.App.Strip;
 
 /// <summary>Карточка снимка в ленте.</summary>
 public sealed class CaptureCardViewModel(
-    Guid id, BitmapSource thumbnail, string? letter, bool isSent, int noteCount, Thickness topMargin)
+    Guid id, BitmapSource thumbnail, string letter, int noteCount, Thickness topMargin)
 {
     public Guid Id { get; } = id;
     public BitmapSource Thumbnail { get; } = thumbnail;
 
-    /// <summary>Буква неотправленного снимка (A, B…); у отправленного — null.</summary>
-    public string? Letter { get; } = letter;
-    public bool IsSent { get; } = isSent;
+    /// <summary>Буква — место снимка на ленте (A, B…).</summary>
+    public string Letter { get; } = letter;
     public int NoteCount { get; } = noteCount;
     public bool HasNotes => NoteCount > 0;
 

@@ -36,8 +36,8 @@
             </Button>
             <TextBlock Text="Snapkit" Margin="9,0,7,0" FontWeight="SemiBold" VerticalAlignment="Center" />
             <Border Background="#33FFFFFF" CornerRadius="9" MinWidth="20" Height="18" Padding="6,0"
-                    VerticalAlignment="Center" ToolTip="Неотправленных снимков">
-                <TextBlock Text="{Binding UnsentCount}" FontSize="11" FontWeight="SemiBold"
+                    VerticalAlignment="Center" ToolTip="Снимков на ленте">
+                <TextBlock Text="{Binding CaptureCount}" FontSize="11" FontWeight="SemiBold"
                            HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <Button Style="{StaticResource IconButton}" Width="26" Margin="4,0,0,0" Content="&#xE70E;"

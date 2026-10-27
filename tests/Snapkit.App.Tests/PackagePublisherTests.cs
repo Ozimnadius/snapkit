@@ -84,25 +84,6 @@ public sealed class PackagePublisherTests : IDisposable
     }
 
     [Fact]
-    public void CopyCapture_WorksForAlreadySentCapture()
-    {
-        SessionService? session = null;
-        PackagePublisher? publisher = null;
-        _host.Run(async () =>
-        {
-            session = new SessionService(new SessionStore(_dir));
-            var id = session.AddCapture(Gray(10, 10), new RectI(0, 0, 10, 10), [Box("отправлен")], "");
-            session.MarkSent([id]);
-            publisher = new PackagePublisher(session, _host.Service);
-            await publisher.CopyCaptureAsync(id);
-        });
-
-        Assert.True(publisher!.HasPasteContent);
-        Assert.Equal("Снимок A\r\nA1 — отправлен", _foreign.ReadText());
-        _host.Run(() => session!.FlushAsync());
-    }
-
-    [Fact]
     public void CopyDraft_PutsImageAndCommentText()
     {
         // Ctrl+Shift+C в редакторе: снимка ещё нет в ленте
@@ -124,7 +105,7 @@ public sealed class PackagePublisherTests : IDisposable
     }
 
     [Fact]
-    public void StripPackage_PlanIsUnsentCaptures()
+    public void StripPackage_PlanIsWholeStrip()
     {
         SessionService? session = null;
         PackagePublisher? publisher = null;
@@ -149,8 +130,7 @@ public sealed class PackagePublisherTests : IDisposable
     [Fact]
     public void AfterStripPaste_SameCapturesStayInClipboard()
     {
-        // Вставили всю ленту в Telegram — следующий Ctrl+V (в Claude) вставит те же снимки,
-        // хотя они уже с галочками
+        // Вставили всю ленту в Telegram — следующий Ctrl+V (в Claude) вставит те же снимки
         SessionService? session = null;
         PackagePublisher? publisher = null;
         Guid a = default, b = default;
@@ -163,9 +143,8 @@ public sealed class PackagePublisherTests : IDisposable
             publisher = new PackagePublisher(session, _host.Service);
             await publisher.PublishPackageAsync();
             var plan = publisher.CreatePastePlan();
-            // Так буфер выглядит после вставки: последний шаг — текст, снимки отмечены отправленными
+            // Так буфер выглядит после вставки: последний шаг — текст
             await _host.Service.PublishAsync(new ClipboardPayload(null, null, plan.Text), ClipboardKind.PasteStep, excludeFromHistory: true);
-            session.MarkSent(plan.CaptureIds);
             await publisher.RestoreAfterPasteAsync(plan);
             again = publisher.CreatePastePlan();
         });
@@ -173,8 +152,7 @@ public sealed class PackagePublisherTests : IDisposable
         Assert.True(_host.Service.IsPackageCurrent());
         Assert.True(publisher!.HasPasteContent);
         Assert.Equal(new[] { a, b }, again!.CaptureIds);
-        Assert.Equal(0, session!.Model.UnsentCount);
-        _host.Run(() => session.FlushAsync());
+        _host.Run(() => session!.FlushAsync());
     }
 
     [Fact]
@@ -194,7 +172,6 @@ public sealed class PackagePublisherTests : IDisposable
             await publisher.PublishCaptureAsync(second);
             var plan = publisher.CreatePastePlan();
             await _host.Service.PublishAsync(new ClipboardPayload(null, null, plan.Text), ClipboardKind.PasteStep, excludeFromHistory: true);
-            session.MarkSent(plan.CaptureIds);
             await publisher.RestoreAfterPasteAsync(plan);
             again = publisher.CreatePastePlan();
         });
@@ -206,41 +183,23 @@ public sealed class PackagePublisherTests : IDisposable
     }
 
     [Fact]
-    public void CopyAll_WhenAllSent_ResendsWholeStrip()
+    public void CopyAll_PutsWholeStrip()
     {
         SessionService? session = null;
+        PackagePublisher? publisher = null;
         _host.Run(async () =>
         {
             session = new SessionService(new SessionStore(_dir));
-            var a = session.AddCapture(Gray(10, 10), new RectI(0, 0, 10, 10), [Box("a")], "");
-            var b = session.AddCapture(Gray(10, 10), new RectI(0, 0, 10, 10), [Box("b")], "");
-            session.MarkSent([a, b]);
-            await new PackagePublisher(session, _host.Service).CopyAllCommandAsync();
-        });
-
-        Assert.Equal(2, session!.Model.UnsentCount);
-        Assert.Contains("Снимок B", _foreign.ReadText());
-        _host.Run(() => session.FlushAsync());
-    }
-
-    [Fact]
-    public void CopyAll_WithSomeSent_CopiesWholeStrip()
-    {
-        // «Копировать всё» — вся лента, а не только неотправленные: галочки снимаются
-        SessionService? session = null;
-        _host.Run(async () =>
-        {
-            session = new SessionService(new SessionStore(_dir));
-            var a = session.AddCapture(Gray(10, 10), new RectI(0, 0, 10, 10), [Box("a")], "");
+            session.AddCapture(Gray(10, 10), new RectI(0, 0, 10, 10), [Box("a")], "");
             session.AddCapture(Gray(10, 10), new RectI(0, 0, 10, 10), [Box("b")], "");
-            session.MarkSent([a]);
-            await new PackagePublisher(session, _host.Service).CopyAllCommandAsync();
+            publisher = new PackagePublisher(session, _host.Service);
+            await publisher.CopyAllCommandAsync();
         });
 
-        Assert.Equal(2, session!.Model.UnsentCount);
+        Assert.True(publisher!.HasPasteContent);
         var text = _foreign.ReadText();
         Assert.Contains("Снимок A", text);
         Assert.Contains("Снимок B", text);
-        _host.Run(() => session.FlushAsync());
+        _host.Run(() => session!.FlushAsync());
     }
 }

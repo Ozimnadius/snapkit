@@ -13,7 +13,7 @@ public static class CaptureRenderer
     public static BitmapSource Render(BitmapSource source, Capture capture, char letter)
         => RenderScaled(source, capture, letter, 1.0);
 
-    /// <summary>Уменьшенная копия для ленты; letter == null — кружки без меток (отправленный снимок).</summary>
+    /// <summary>Уменьшенная копия для ленты; letter == null — у кружков только номер.</summary>
     public static BitmapSource RenderThumbnail(BitmapSource source, Capture capture, char? letter, int maxWidth)
         => RenderScaled(source, capture, letter, Math.Min(1.0, (double)maxWidth / capture.PixelWidth));
 

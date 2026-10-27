@@ -23,8 +23,8 @@ public static class AnnotationPainter
     private static readonly Brush NoSourceBlur = Palette.Brush("#808080", 0.6);
 
     /// <summary>
-    /// Все фигуры, затем кружки заметок поверх. letter == null — у кружков только номер
-    /// (миниатюра отправленного снимка). source — пиксели снимка для размытия.
+    /// Все фигуры, затем кружки заметок поверх. letter == null — у кружков только номер.
+    /// source — пиксели снимка для размытия.
     /// </summary>
     public static void DrawAll(DrawingContext dc, IEnumerable<Annotation> annotations, char? letter, BlurSource? source = null)
     {

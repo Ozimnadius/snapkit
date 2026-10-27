@@ -8,6 +8,6 @@ public class CaptureFeedbackTests
     public void Copied_SaysWhatCtrlVDoes() => Assert.Equal("Снимок скопирован — Ctrl+V вставит", CaptureFeedback.Copied);
 
     [Fact]
-    public void StripFull_NamesLimit()
-        => Assert.Equal("В ленте 20 неотправленных снимков. Вставьте или удалите лишние", CaptureFeedback.StripFull);
+    public void Evicted_SaysOldestRemoved()
+        => Assert.Equal("Лента полная — удалён самый старый снимок", CaptureFeedback.Evicted);
 }

@@ -11,7 +11,7 @@ namespace Snapkit.App.Tests;
 public class StripWindowTests
 {
     private static Capture Cap() => new(
-        Guid.NewGuid(), 10, 10, new RectI(0, 0, 10, 10), [], "", false, DateTimeOffset.UnixEpoch);
+        Guid.NewGuid(), 10, 10, new RectI(0, 0, 10, 10), [], "", DateTimeOffset.UnixEpoch);
 
     private static BitmapSource Red()
     {

@@ -4,7 +4,7 @@ using System.Windows.Input;
 namespace Snapkit.App.Strip;
 
 /// <summary>
-/// Капсула — свёрнутая лента: кнопка нового снимка, счётчик неотправленных и «развернуть».
+/// Капсула — свёрнутая лента: кнопка нового снимка, счётчик снимков и «развернуть».
 /// Окно только сообщает о действиях; что делать, решает App.
 /// </summary>
 public partial class CapsuleWindow : Window

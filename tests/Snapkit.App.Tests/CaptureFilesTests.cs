@@ -82,7 +82,7 @@ public sealed class CaptureFilesTests : IDisposable
         var source = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, pixels, w * 4);
         source.Freeze();
         var blur = new Annotation(Guid.NewGuid(), AnnotationKind.Blur, [new(20, 10), new(100, 50)], "#E53935", 4, null, "пароль");
-        var capture = new Capture(Guid.NewGuid(), w, h, new RectI(0, 0, w, h), [blur], "", false, DateTimeOffset.UnixEpoch);
+        var capture = new Capture(Guid.NewGuid(), w, h, new RectI(0, 0, w, h), [blur], "", DateTimeOffset.UnixEpoch);
         var item = new LetteredCapture('A', capture);
         var time = new DateTime(2026, 10, 26, 15, 40, 12);
 

@@ -31,7 +31,7 @@ public readonly record struct KeyDecision(bool Suppress, KeyAction Action);
 
 /// <summary>
 /// Условия перехвата Ctrl+V (раздел 7.2 описания проекта). HasPasteContent — в скопированном пакете
-/// есть что вставить (неотправленные снимки ленты или один скопированный снимок).
+/// есть что вставить (снимки ленты или один скопированный снимок).
 /// </summary>
 public readonly record struct PasteContext(bool HasPasteContent, bool PackageIsCurrent, bool ForegroundIsOwn)
 {
